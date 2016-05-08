@@ -1,11 +1,9 @@
 <resources>
     <string name="app_name">AThesis</string>
+    <string name="version_name">1.0.0</string>
 
     <string name="drawer_open">Open navigation drawer</string>
     <string name="drawer_close">Close navigation drawer</string>
-
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
 
     <string name="ok">OK</string>
     <string name="permission_available_location">Location Permissions have been granted.</string>
@@ -32,6 +30,4 @@
     <string name="disconnect">Disconnect</string>
 
     <string name="no_acct">Error: account not found!</string>
-
-
 </resources>
