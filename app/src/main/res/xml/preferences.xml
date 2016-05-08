@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="pref_updates"
+        android:title="@string/pref_title_updates" />
+
+    <Preference
+        android:key="pref_logout"
+        android:title="@string/pref_title_logout">
+    </Preference>
+
+    <Preference
+        android:key="pref_disconnect"
+        android:title="@string/pref_title_disconnect" />
+
+</PreferenceScreen>
