@@ -8,11 +8,24 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context="com.devmicheledonato.thesis.fragments.AboutFragment">
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:text="Version: @string/version_name"
-        android:textAppearance="?android:textAppearanceLarge"
-        android:textStyle="bold" />
+        android:orientation="horizontal">
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Version: "
+            android:textAppearance="?android:textAppearanceLarge"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/version_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/version_name"
+            android:textAppearance="?android:textAppearanceLarge" />
+
+    </LinearLayout>
 </FrameLayout>

@@ -71,18 +71,18 @@ public class LocationService extends Service implements
      */
     protected static final int REQUEST_CHECK_SETTINGS = 0x1;
 
+    private static long seconds = 1000;
+    private static long minutes = 60 * seconds;
     /**
      * The desired interval for location updates. Inexact. Updates may be more or less frequent.
      */
-    public static final long UPDATE_INTERVAL_IN_MILLISECONDS = 10 * 1000;
+    public static final long UPDATE_INTERVAL_IN_MILLISECONDS = 10 * seconds;
 
     /**
      * The fastest rate for active location updates. Exact. Updates will never be more frequent
      * than this value.
      */
-    public static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS =
-            UPDATE_INTERVAL_IN_MILLISECONDS;
-    //      UPDATE_INTERVAL_IN_MILLISECONDS / 2;
+    public static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS;
 
     public static final String PACKAGE_NAME = "com.devmicheledonato.thesis.LocationService";
 
@@ -331,12 +331,12 @@ public class LocationService extends Service implements
 
     protected void startLocationUpdates() {
         Log.i(TAG, "startLocationUpdates");
-        try {
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-
-        } catch (SecurityException e) {
-            e.printStackTrace();
-        }
+//        try {
+//            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+//
+//        } catch (SecurityException e) {
+//            e.printStackTrace();
+//        }
 
         /**
          * Registers for activity recognition updates using
@@ -558,36 +558,39 @@ public class LocationService extends Service implements
      */
     protected void updateDetectedActivity(DetectedActivity detectedActivity) {
         Log.i(TAG, "activity detected " + detectedActivity.getType() + " " + detectedActivity.getConfidence() + "%");
-
         int detectedActivityType = detectedActivity.getType();
-        long millis = 1000;
-        long minutes = 60 * millis;
-
         switch (detectedActivityType) {
             case DetectedActivity.IN_VEHICLE:
                 Log.i(TAG, "IN_VEHICLE");
+                setUpdateInterval(10 * seconds, 10 * seconds);
                 break;
             case DetectedActivity.ON_BICYCLE:
                 Log.i(TAG, "ON_BICYCLE");
-                break;
-            case DetectedActivity.ON_FOOT:
-                Log.i(TAG, "ON_FOOT");
+                setUpdateInterval(15 * seconds, 15 * seconds);
                 break;
             case DetectedActivity.RUNNING:
                 Log.i(TAG, "RUNNING");
+                setUpdateInterval(20 * seconds, 20 * seconds);
+                break;
+            case DetectedActivity.ON_FOOT:
+                Log.i(TAG, "ON_FOOT");
+                // The device is on a user who is walking or running.
+                setUpdateInterval(35 * seconds, 35 * seconds);
+                break;
+            case DetectedActivity.WALKING:
+                Log.i(TAG, "WALKING");
+                setUpdateInterval(1 * minutes, 1 * minutes);
                 break;
             case DetectedActivity.STILL:
                 Log.i(TAG, "STILL");
-                setUpdateInterval(10 * millis, 5 * millis);
+                // The device is still (not moving).
+                setUpdateInterval(5 * minutes, 5 * minutes);
                 break;
             case DetectedActivity.TILTING:
                 Log.i(TAG, "TILTING");
                 break;
             case DetectedActivity.UNKNOWN:
                 Log.i(TAG, "UNKNOWN");
-                break;
-            case DetectedActivity.WALKING:
-                Log.i(TAG, "WALKING");
                 break;
             default:
                 Log.i(TAG, "UNIDENTIFIABLE_ACTIVITY");
@@ -609,12 +612,16 @@ public class LocationService extends Service implements
 
     // Remove the previous updates and request the new location updates
     private void removeRequestLocationUpdates() {
-        try {
+        if (mGoogleApiClient.isConnected()) {
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient,
-                    mLocationRequest, this);
-        } catch (SecurityException e) {
-            e.printStackTrace();
+            try {
+                LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient,
+                        mLocationRequest, this);
+            } catch (SecurityException e) {
+                e.printStackTrace();
+            }
+        } else {
+            mGoogleApiClient.connect();
         }
     }
 }
