@@ -1,9 +1,13 @@
 package com.devmicheledonato.thesis;
 
 import android.app.IntentService;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
+import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
@@ -45,6 +49,19 @@ public class DetectedActivitiesIntentService extends IntentService {
         // device. The activity is associated with a confidence level, which is an int between
         // 0 and 100.
         DetectedActivity detectedActivity = result.getMostProbableActivity();
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
+        builder.setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("ActivityDetected");
+        // Dismiss notification once the user touches it.
+        builder.setAutoCancel(true);
+
+        // Get an instance of the Notification manager
+        NotificationManager mNotificationManager =
+                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+        // Issue the notification
+        mNotificationManager.notify(0, builder.build());
 
 //        // Log each activity.
 //        Log.i(TAG, "activity detected ");

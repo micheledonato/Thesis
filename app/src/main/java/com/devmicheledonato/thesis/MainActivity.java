@@ -2,8 +2,10 @@ package com.devmicheledonato.thesis;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.Fragment;
 import android.app.FragmentManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -41,6 +43,8 @@ import com.devmicheledonato.thesis.fragments.AboutFragment;
 import com.devmicheledonato.thesis.fragments.DataFragment;
 import com.devmicheledonato.thesis.fragments.MapsFragment;
 import com.devmicheledonato.thesis.fragments.SettingsFragment;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.LocationRequest;
 
 import java.io.File;
@@ -74,6 +78,8 @@ public class MainActivity extends AppCompatActivity implements
     private static final String MAPS_TAG = "MAPS_TAG";
     private static final String SETTINGS_TAG = "SETTINGS_TAG";
     private static final String ABOUT_TAG = "ABOUT_TAG";
+
+    private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
 
     /**
      * Permissions required to get position.
@@ -111,6 +117,10 @@ public class MainActivity extends AppCompatActivity implements
         super.onCreate(savedInstanceState);
         Log.i(TAG, "onCreate");
 
+//           if(checkPlayServices()){
+//            // TODO
+//        }
+
         // Initialized with default settings
         // When false, the system sets the default values only if this method has never been called in the past
         PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
@@ -129,13 +139,13 @@ public class MainActivity extends AppCompatActivity implements
         // Intent for start and stop LocationService
         intent = new Intent(this, LocationService.class);
         // Set to false cause LocationService doesn't running
-        mServiceRunning = false;
+//        mServiceRunning = false;
         // Obtain fragment manager
         fragmentManager = getFragmentManager();
 
-        if (savedInstanceState != null) {
-            mServiceRunning = savedInstanceState.getBoolean(SERVICE_RUNNING);
-        }
+//        if (savedInstanceState != null) {
+//            mServiceRunning = savedInstanceState.getBoolean(SERVICE_RUNNING);
+//        }
 
         if (!sharedPref.contains(SignInActivity.PERSON_ID)) {
             login();
@@ -145,7 +155,8 @@ public class MainActivity extends AppCompatActivity implements
     private void login() {
         Intent intentFromSettings = getIntent();
         if (intentFromSettings.hasExtra(SignInActivity.SIGNING)) {
-            if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
+//            if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
+            if (isMyServiceRunning(LocationService.class)) {
                 Log.i(TAG, "startSigning.stopUpdates");
                 stopUpdates();
             }
@@ -170,7 +181,8 @@ public class MainActivity extends AppCompatActivity implements
         Log.i(TAG, "onResume");
         super.onResume();
 
-        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
+//        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
+        if (isMyServiceRunning(LocationService.class)) {
             Intent localIntent = new Intent(LocationService.ACCURACY_ACTION);
             localIntent.putExtra(LocationService.ACCURACY_EXTRA, LocationRequest.PRIORITY_HIGH_ACCURACY);
             LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
@@ -184,13 +196,20 @@ public class MainActivity extends AppCompatActivity implements
         Log.i(TAG, "onPause");
         super.onPause();
 
-        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
+//        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
+        if (isMyServiceRunning(LocationService.class)) {
             Intent localIntent = new Intent(LocationService.ACCURACY_ACTION);
             localIntent.putExtra(LocationService.ACCURACY_EXTRA, LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
             LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
         }
 
         PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(this);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.i(TAG, "onDestroy");
     }
 
     private void initNavDrawer() {
@@ -316,18 +335,18 @@ public class MainActivity extends AppCompatActivity implements
             Log.i(TAG, "Fragment doesn't exist");
             try {
                 f = (Fragment) fragmentClass.newInstance();
+                fragmentManager.beginTransaction().replace(R.id.flContent, f, tagFragment).commit();
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            fragmentManager.beginTransaction().replace(R.id.flContent, f, tagFragment).commit();
         }
     }
 
     @Override
     public void onBackPressed() {
-        if(mDrawer.isDrawerOpen(GravityCompat.START)){
+        if (mDrawer.isDrawerOpen(GravityCompat.START)) {
             mDrawer.closeDrawer(GravityCompat.START);
-        }else{
+        } else {
             super.onBackPressed();
         }
     }
@@ -547,5 +566,31 @@ public class MainActivity extends AppCompatActivity implements
                 stopUpdates();
             }
         }
+    }
+
+    private boolean isMyServiceRunning(Class<?> serviceClass) {
+        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (serviceClass.getName().equals(service.service.getClassName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean checkPlayServices() {
+        GoogleApiAvailability googleAPI = GoogleApiAvailability.getInstance();
+        int result = googleAPI.isGooglePlayServicesAvailable(this);
+        if (result != ConnectionResult.SUCCESS) {
+            if (googleAPI.isUserResolvableError(result)) {
+                googleAPI.getErrorDialog(this, result,
+                        PLAY_SERVICES_RESOLUTION_REQUEST).show();
+            } else {
+                Log.i(TAG, "This device is not supported.");
+                finish();
+            }
+            return false;
+        }
+        return true;
     }
 }

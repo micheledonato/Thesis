@@ -11,14 +11,11 @@ import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.HandlerThread;
+import android.os.CountDownTimer;
 import android.os.IBinder;
-import android.os.Looper;
-import android.os.Message;
-import android.os.Process;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
@@ -30,6 +27,9 @@ import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.DetectedActivity;
+import com.google.android.gms.location.FusedLocationProviderApi;
+import com.google.android.gms.location.Geofence;
+import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
@@ -37,19 +37,11 @@ import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResult;
 import com.google.android.gms.location.LocationSettingsStatusCodes;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -73,6 +65,9 @@ public class LocationService extends Service implements
 
     private static long seconds = 1000;
     private static long minutes = 60 * seconds;
+
+    private static final float DISTANCE_RADIUS = 50;
+
     /**
      * The desired interval for location updates. Inexact. Updates may be more or less frequent.
      */
@@ -131,9 +126,16 @@ public class LocationService extends Service implements
     // Represents a geographical location.
     protected static Location mCurrentLocation;
 
-    private boolean first;
+    // Stores the PendingIntent used to request geofence monitoring.
+    private PendingIntent mGeofenceRequestIntent;
+    private GeofencingRequest mGeofencingRequest;
 
-    private LockFile lockFile;
+    private boolean first;
+    private LocationFile locationFile;
+    private SimpleGeofence simpleGeofence;
+    private boolean startGeofencing;
+    private CountDownTimer timer;
+    private Location enterPoint;
 
     public LocationService() {
         Log.i(TAG, "MyService");
@@ -169,13 +171,14 @@ public class LocationService extends Service implements
         Log.i(TAG, "onCreate");
         super.onCreate();
 
-        lockFile = new LockFile(this);
-
 //        first = true;
 //        highAccuracy = true;
 
         mRunning = false;
         mCurrentLocation = null;
+
+        startGeofencing = false;
+        simpleGeofence = null;
 
         // Get a receiver for broadcasts from ActivityDetectionIntentService.
         mBroadcastReceiver = new UpdatesBroadcastReceiver();
@@ -241,7 +244,7 @@ public class LocationService extends Service implements
         LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, intentFilter);
 
 
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     @Override
@@ -415,110 +418,80 @@ public class LocationService extends Service implements
         String dateString = simpleDateFormat.format(date);
         Long timeInMillis = calendar.getTimeInMillis();
         Log.d(TAG, "Location " + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude() + " Time " + dateString);
-
-        lockFile.writeFile(timeInMillis + "," + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude());
-        //writeFile(dateString + "," + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude());
-
-//        lockFile.readFile();
+//
+//        if (!startGeofencing) {
+//            Log.i(TAG, "startGeofencing");
+//            // Create new file with name dateString
+//            locationFile = new LocationFile(this, dateString);
+//            startGeofencing = true;
+//
+//            // Set countdown
+//            setCountdown();
+//            // Save initial point
+//            simpleGeofence = new SimpleGeofence(mCurrentLocation, timeInMillis);
+//            enterPoint = mCurrentLocation;
+//        } else {
+//            float distance = enterPoint.distanceTo(mCurrentLocation);
+//            Log.i(TAG, "Distance: " + distance);
+//            if (distance > DISTANCE_RADIUS) {
+//                Log.i(TAG, "Distance greater");
+//                // Reset countdown
+//                setCountdown();
+//                // Save the new initial point
+//                simpleGeofence = new SimpleGeofence(mCurrentLocation, timeInMillis);
+//                enterPoint = mCurrentLocation;
+//            } else {
+//                simpleGeofence.addLocation(mCurrentLocation);
+//            }
+//        }
+//        // Save location into file
+//        locationFile.writeFile(timeInMillis + "," + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude());
     }
 
-    private void writeFile(String line) {
-        file = new File(this.getApplicationContext().getExternalCacheDir(), "location.txt");
-        fileWriter = null;
-        bufferedWriter = null;
-        printWriter = null;
-        try {
-            fileWriter = new FileWriter(file, true);
-            bufferedWriter = new BufferedWriter(fileWriter);
-            printWriter = new PrintWriter(bufferedWriter);
-            printWriter.println(line);
-            printWriter.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                if (bufferedWriter != null)
-                    bufferedWriter.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            try {
-                if (fileWriter != null)
-                    fileWriter.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+    private void setCountdown() {
+        Log.i(TAG, "setCountdown");
+        if (timer != null) {
+            Log.i(TAG, "Timer cancelled");
+            timer.cancel();
         }
+        timer = new CountDownTimer(3 * minutes, 1 * minutes) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                Log.i(TAG, Long.toString(millisUntilFinished));
+            }
+
+            @Override
+            public void onFinish() {
+//                timer = null;
+                Log.i(TAG, "Timer finished");
+                addGeofence();
+            }
+        };
+        timer.start();
     }
 
-//    public void fileToJson() {
-//        file = new File(this.getApplicationContext().getExternalCacheDir(), "location.txt");
-//
-//        JSONObject total = new JSONObject();
-//        JSONArray jsonArray = new JSONArray();
-//        try {
-//            total.put("User", "Michele");
-//            total.put("Location", jsonArray);
-//        } catch (JSONException e) {
-//            e.printStackTrace();
-//        }
-//
-//        FileReader fileReader = null;
-//        BufferedReader bufferedReader = null;
-//        try {
-//            fileReader = new FileReader(file);
-//            bufferedReader = new BufferedReader(fileReader);
-//
-//            String line;
-//            while ((line = bufferedReader.readLine()) != null) {
-//                String[] arrayLine = line.split(",");
-//                JSONObject jsonObject = new JSONObject();
-//                try {
-//                    jsonObject.put("Date", arrayLine[0]);
-//                    jsonObject.put("Lat", arrayLine[1]);
-//                    jsonObject.put("Lng", arrayLine[2]);
-//                } catch (JSONException e) {
-//                    e.printStackTrace();
-//                }
-//                jsonArray.put(jsonObject);
-//            }
-//        } catch (FileNotFoundException e) {
-//            e.printStackTrace();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        } finally {
-//            try {
-//                if (bufferedReader != null)
-//                    bufferedReader.close();
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//            try {
-//                if (fileReader != null)
-//                    fileReader.close();
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//        }
-//
-//        // Send to WebServer
-//        Log.i(TAG, total.toString());
-//    }
+    private void addGeofence() {
+        Log.i(TAG, "addGeofence");
+        stopLocationUpdates();
+        Geofence geofence = simpleGeofence.prepareGeofence();
+        // Get the PendingIntent for the geofence monitoring request.
+        // Send a request to add the current geofence.
+        mGeofenceRequestIntent = getGeofenceTransitionPendingIntent();
+        mGeofencingRequest = getGeofencingRequest(geofence);
+        try {
+            LocationServices.GeofencingApi.addGeofences(mGoogleApiClient, mGeofencingRequest, mGeofenceRequestIntent);
+        } catch (SecurityException securityException) {
+            securityException.printStackTrace();
+        }
+        startGeofencing = false;
+    }
 
-//    private void readJsonObject(JSONObject total){
-//        try{
-//            String user = total.getString("user");
-//            JSONArray jsonArray = total.getJSONArray("Location");
-//            for(int i=0; i<jsonArray.length(); i++){
-//                JSONObject jsonObject = jsonArray.getJSONObject(i);
-//                String date = jsonObject.getString("Date");
-//                String lat = jsonObject.getString("Lat");
-//                String lng = jsonObject.getString("Lng");
-//            }
-//        }catch(JSONException e){
-//            e.printStackTrace();
-//        }
-//    }
+    private GeofencingRequest getGeofencingRequest(Geofence geofence) {
+        GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
+        builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER);
+        builder.addGeofence(geofence);
+        return builder.build();
+    }
 
     /**
      * Gets a PendingIntent to be sent for each activity detection.
@@ -528,6 +501,15 @@ public class LocationService extends Service implements
 
         // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when calling
         // requestActivityUpdates() and removeActivityUpdates().
+        return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    /**
+     * Create a PendingIntent that triggers GeofenceTransitionIntentService when a geofence
+     * transition occurs.
+     */
+    private PendingIntent getGeofenceTransitionPendingIntent() {
+        Intent intent = new Intent(this, GeofenceTransitionsIntentService.class);
         return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
@@ -584,7 +566,8 @@ public class LocationService extends Service implements
             case DetectedActivity.STILL:
                 Log.i(TAG, "STILL");
                 // The device is still (not moving).
-                setUpdateInterval(5 * minutes, 5 * minutes);
+//                setUpdateInterval(5 * minutes, 5 * minutes);
+                setUpdateInterval(30 * seconds, 30 * seconds);
                 break;
             case DetectedActivity.TILTING:
                 Log.i(TAG, "TILTING");

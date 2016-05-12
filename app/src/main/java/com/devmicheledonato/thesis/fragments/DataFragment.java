@@ -10,7 +10,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
 
-import com.devmicheledonato.thesis.LockFile;
+import com.devmicheledonato.thesis.LocationFile;
 import com.devmicheledonato.thesis.R;
 
 import org.json.JSONArray;
@@ -46,7 +46,7 @@ public class DataFragment extends Fragment {
     private Button send;
     private Button refresh;
 
-    LockFile lockFile;
+    LocationFile locationFile;
 
 
     public DataFragment() {
@@ -62,7 +62,7 @@ public class DataFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        lockFile = new LockFile(getActivity());
+        locationFile = new LocationFile(getActivity(), "location.txt");
     }
 
     @Override
@@ -107,7 +107,7 @@ public class DataFragment extends Fragment {
 //                    }
 //                    new postValue().execute();
 //                }
-                userJSON = lockFile.fileToJson();
+                userJSON = locationFile.fileToJson();
                 Log.i(TAG, userJSON.toString());
                 new postValue().execute();
             }

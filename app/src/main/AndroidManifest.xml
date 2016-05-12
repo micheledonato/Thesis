@@ -47,7 +47,11 @@
             android:name=".DetectedActivitiesIntentService"
             android:exported="false" />
 
-        <activity android:name=".SignInActivity"></activity>
+        <activity android:name=".SignInActivity" />
+
+        <service
+            android:name=".GeofenceTransitionsIntentService"
+            android:exported="false"></service>
     </application>
 
 </manifest>
