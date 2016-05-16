@@ -2,6 +2,7 @@ package com.devmicheledonato.thesis.fragments;
 
 
 import android.app.AlertDialog;
+import android.app.Application;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -16,22 +17,22 @@ import com.devmicheledonato.thesis.LocationService;
 import com.devmicheledonato.thesis.MainActivity;
 import com.devmicheledonato.thesis.R;
 import com.devmicheledonato.thesis.SignInActivity;
+import com.devmicheledonato.thesis.ThesisApplication;
 
 
 public class SettingsFragment extends PreferenceFragment {
 
 
     public static final String TAG = "SETFRAGMENT_TAG";
-    private MainActivity mainActivity;
     private SharedPreferences sharedPref;
     private SwitchPreference prefUpdates;
+    private ThesisApplication app;
 
     public SettingsFragment() {
         // Required empty public constructor
     }
 
     public static SettingsFragment newInstance() {
-
         SettingsFragment fragment = new SettingsFragment();
         return fragment;
     }
@@ -42,9 +43,9 @@ public class SettingsFragment extends PreferenceFragment {
         // Load the preferences from an XML resource
         addPreferencesFromResource(R.xml.preferences);
         sharedPref = PreferenceManager.getDefaultSharedPreferences(getActivity());
-        mainActivity = MainActivity.getInstance();
         prefUpdates = (SwitchPreference) findPreference(MainActivity.KEY_PREF_UPDATES);
-        if(mainActivity.isMyServiceRunning(LocationService.class)){
+        app = (ThesisApplication) getActivity().getApplication();
+        if(app.isMyServiceRunning(LocationService.class)){
             prefUpdates.setChecked(true);
         }else{
             prefUpdates.setChecked(false);

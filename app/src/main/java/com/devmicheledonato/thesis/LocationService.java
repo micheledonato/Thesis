@@ -208,7 +208,7 @@ public class LocationService extends Service implements
 
 //        startForeground();
 
-        Toast.makeText(getApplicationContext(), "StartCommand", Toast.LENGTH_SHORT).show();
+//        Toast.makeText(getApplicationContext(), "StartCommand", Toast.LENGTH_SHORT).show();
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED ||

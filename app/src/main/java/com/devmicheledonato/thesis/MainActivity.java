@@ -3,6 +3,7 @@ package com.devmicheledonato.thesis;
 import android.Manifest;
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.Application;
 import android.app.Fragment;
 import android.app.FragmentManager;
 import android.content.Context;
@@ -106,6 +107,7 @@ public class MainActivity extends AppCompatActivity implements
 
     private SharedPreferences sharedPref;
     FragmentManager fragmentManager;
+    private ThesisApplication app;
 
     public static MainActivity getInstance() {
         Log.i("MainActivity", "getInstance");
@@ -120,6 +122,9 @@ public class MainActivity extends AppCompatActivity implements
 //           if(checkPlayServices()){
 //            // TODO
 //        }
+
+        app = (ThesisApplication) getApplication();
+
 
         // Initialized with default settings
         // When false, the system sets the default values only if this method has never been called in the past
@@ -155,7 +160,7 @@ public class MainActivity extends AppCompatActivity implements
         Intent intentFromSettings = getIntent();
         if (intentFromSettings != null && intentFromSettings.hasExtra(SignInActivity.SIGNING)) {
 //            if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
-            if (isMyServiceRunning(LocationService.class)) {
+            if (app.isMyServiceRunning(LocationService.class)) {
                 Log.i(TAG, "startSigning.stopUpdates");
                 stopUpdates();
             }
@@ -183,13 +188,14 @@ public class MainActivity extends AppCompatActivity implements
         super.onResume();
 
 //        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
-//        if (isMyServiceRunning(LocationService.class)) {
+//        if (app.isMyServiceRunning(LocationService.class)) {
 //            Intent localIntent = new Intent(LocationService.ACCURACY_ACTION);
 //            localIntent.putExtra(LocationService.ACCURACY_EXTRA, LocationRequest.PRIORITY_HIGH_ACCURACY);
 //            LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
 //        }
 
-        if (isMyServiceRunning(LocationService.class)) {
+        if (app.isMyServiceRunning(LocationService.class)) {
+            Log.i(TAG, "sdjgnsjgoasnoògbsk");
             startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_HIGH_ACCURACY));
         }
         PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(this);
@@ -201,13 +207,13 @@ public class MainActivity extends AppCompatActivity implements
         super.onPause();
 
 //        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
-//        if (isMyServiceRunning(LocationService.class)) {
+//        if (app.isMyServiceRunning(LocationService.class)) {
 //            Intent localIntent = new Intent(LocationService.ACCURACY_ACTION);
 //            localIntent.putExtra(LocationService.ACCURACY_EXTRA, LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
 //            LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
 //        }
 
-        if (isMyServiceRunning(LocationService.class)) {
+        if (app.isMyServiceRunning(LocationService.class)) {
             startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY));
         }
         PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(this);
@@ -588,16 +594,6 @@ public class MainActivity extends AppCompatActivity implements
                 stopUpdates();
             }
         }
-    }
-
-    public boolean isMyServiceRunning(Class<?> serviceClass) {
-        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
-            if (serviceClass.getName().equals(service.service.getClassName())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean checkPlayServices() {
