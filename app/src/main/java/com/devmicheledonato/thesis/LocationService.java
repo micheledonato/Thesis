@@ -8,17 +8,20 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.IntentSender;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.IBinder;
+import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -32,6 +35,7 @@ import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResult;
@@ -50,7 +54,7 @@ import java.util.Locale;
 public class LocationService extends Service implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        LocationListener, ResultCallback<LocationSettingsResult> {
+        ResultCallback<LocationSettingsResult> {
 
     // Variable for understand if Service is running or not
     private static boolean mRunning;
@@ -82,11 +86,13 @@ public class LocationService extends Service implements
     public static final String PACKAGE_NAME = "com.devmicheledonato.thesis.LocationService";
 
     public static final String DETECTED_ACTIVITY_ACTION = PACKAGE_NAME + ".DETECTED_ACTIVITY_ACTION";
-
     public static final String DETECTED_ACTIVITY_EXTRA = PACKAGE_NAME + ".DETECTED_ACTIVITY_EXTRA";
 
     public static final String ACCURACY_ACTION = PACKAGE_NAME + ".ACCURACY_ACTION";
     public static final String ACCURACY_EXTRA = PACKAGE_NAME + ".ACCURACY_EXTRA";
+
+    public static final String START_LOCATION_ACTION = "START_LOCATION_ACTION";
+
     /**
      * The desired time between activity detections. Larger values result in fewer activity
      * detections while improving battery life. A value of 0 results in activity detections at the
@@ -94,6 +100,8 @@ public class LocationService extends Service implements
      * app may prefer to request less frequent updates.
      */
     public static final long DETECTION_INTERVAL_IN_MILLISECONDS = 0;
+
+    private static final String START_GEOFENCING = "START_GEOFENCING";
 
     // Json file
     File file;
@@ -111,7 +119,7 @@ public class LocationService extends Service implements
 
     // A receiver for DetectedActivity objects broadcast by the
     // {@code ActivityDetectionIntentService}.
-    protected UpdatesBroadcastReceiver mBroadcastReceiver;
+//    protected UpdatesBroadcastReceiver mBroadcastReceiver;
 
     // Provides the entry point to Google Play services.
     protected GoogleApiClient mGoogleApiClient;
@@ -136,21 +144,13 @@ public class LocationService extends Service implements
     private boolean startGeofencing;
     private CountDownTimer timer;
     private Location enterPoint;
+    private SharedPreferences sharedPref;
+    private Rest rest;
+    private int count;
 
     public LocationService() {
         Log.i(TAG, "MyService");
     }
-
-//    private final class ServiceHandler extends Handler{
-//        public ServiceHandler(Looper looper){
-//            super(looper);
-//        }
-//
-//        @Override
-//        public void handleMessage(Message msg) {
-//            super.handleMessage(msg);
-//        }
-//    }
 
     public static boolean isRunning() {
         return mRunning;
@@ -174,14 +174,21 @@ public class LocationService extends Service implements
 //        first = true;
 //        highAccuracy = true;
 
+        count = 0;
+
         mRunning = false;
         mCurrentLocation = null;
 
-        startGeofencing = false;
         simpleGeofence = null;
 
+        startGeofencing = false;
+        sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putBoolean(START_GEOFENCING, startGeofencing);
+        editor.apply();
+
         // Get a receiver for broadcasts from ActivityDetectionIntentService.
-        mBroadcastReceiver = new UpdatesBroadcastReceiver();
+//        mBroadcastReceiver = new UpdatesBroadcastReceiver();
 
         buildGoogleApiClient();
         createLocationRequest();
@@ -201,48 +208,61 @@ public class LocationService extends Service implements
 
 //        startForeground();
 
+        Toast.makeText(getApplicationContext(), "StartCommand", Toast.LENGTH_SHORT).show();
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
                         != PackageManager.PERMISSION_GRANTED) {
 
-            Log.i(TAG, "stopSelf");
             // If we don't have permission, stop the service
             stopSelf();
+            Log.i(TAG, "stopSelf");
             return START_NOT_STICKY;
         }
 
         if (intent != null) {
-            Log.i(TAG, "Intent not null");
-            boolean highAccuracy = intent.getBooleanExtra(ACCURACY_EXTRA, false);
-            if (highAccuracy) {
-                mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+            String action = intent.getAction();
+            if (action != null) {
+                if (action.equals(LocationChangedIntentService.LOCATION_CHANGE_ACTION)) {
+                    if (intent.hasExtra(LocationChangedIntentService.LOCATION_CHANGE_EXTRA)) {
+                        Location location = intent.getParcelableExtra(LocationChangedIntentService.LOCATION_CHANGE_EXTRA);
+                        locationChanged(location);
+                        return START_NOT_STICKY;
+                    }
+                }
+                // Receives a DetectedActivity objects associated with the current state of the device.
+                if (action.equals(DetectedActivitiesIntentService.DETECTED_ACTIVITY_ACTION)) {
+                    if (intent.hasExtra(DetectedActivitiesIntentService.DETECTED_ACTIVITY_EXTRA)) {
+                        DetectedActivity updatedActivity = intent.getParcelableExtra(DetectedActivitiesIntentService.DETECTED_ACTIVITY_EXTRA);
+                        updateDetectedActivity(updatedActivity);
+                        return START_NOT_STICKY;
+                    }
+                }
+                // Receives the Accuracy for location updates
+                if (ACCURACY_ACTION.equals(action)) {
+                    if (intent.hasExtra(ACCURACY_EXTRA)) {
+                        int mAccuracy = intent.getIntExtra(ACCURACY_EXTRA, LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+                        updateAccuracy(mAccuracy);
+                        return START_NOT_STICKY;
+                    }
+                }
+                if (START_LOCATION_ACTION.equals(action)) {
+                    if (mGoogleApiClient.isConnected()) {
+                        Log.i(TAG, "GoogleApiClient Connected");
+                        checkLocationSettings();
+                    } else if (!mGoogleApiClient.isConnected() && !mGoogleApiClient.isConnecting()) {
+                        Log.i(TAG, "GoogleApiClient not Connected");
+                        mGoogleApiClient.connect();
+                    }
+                    return START_NOT_STICKY;
+                }
             } else {
-                mLocationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+                Log.i(TAG, "Action is null");
             }
-//            if (intent.getBooleanExtra("Json", false)) {
-//                fileToJson();
-//            }
+        } else {
+            Log.i(TAG, "Intent is null");
         }
-
-        if (mGoogleApiClient.isConnected()) {
-            Log.i(TAG, "GoogleApiClient Connected");
-            checkLocationSettings();
-//            startLocationUpdates();
-//            return START_STICKY;
-        } else if (!mGoogleApiClient.isConnected() && !mGoogleApiClient.isConnecting()) {
-            Log.i(TAG, "GoogleApiClient not Connected");
-            mGoogleApiClient.connect();
-        }
-
-        // Create a new intentFilter and add 2 action that BroadcastReceiver can receive
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(DETECTED_ACTIVITY_ACTION);
-        intentFilter.addAction(ACCURACY_ACTION);
-        // Register the broadcast receiver that informs this activity of the DetectedActivity
-        // object broadcast sent by the intent service.
-        LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, intentFilter);
-
 
         return START_NOT_STICKY;
     }
@@ -256,9 +276,6 @@ public class LocationService extends Service implements
             stopLocationUpdates();
             mGoogleApiClient.disconnect();
         }
-
-        // Unregister the broadcast receiver that was registered during onResume().
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(mBroadcastReceiver);
 
 //        stopForeground();
     }
@@ -278,7 +295,7 @@ public class LocationService extends Service implements
         mLocationRequest = new LocationRequest();
         mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
         mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
     }
 
     protected void buildLocationSettingsRequest() {
@@ -341,16 +358,6 @@ public class LocationService extends Service implements
 //            e.printStackTrace();
 //        }
 
-        /**
-         * Registers for activity recognition updates using
-         * {@link com.google.android.gms.location.ActivityRecognitionApi#requestActivityUpdates} which
-         * returns a {@link com.google.android.gms.common.api.PendingResult}. Since this activity
-         * implements the PendingResult interface, the activity itself receives the callback, and the
-         * code within {@code onResult} executes. Note: once {@code requestActivityUpdates()} completes
-         * successfully, the {@code DetectedActivitiesIntentService} starts receiving callbacks when
-         * activities are detected.
-         */
-
         ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(
                 mGoogleApiClient,
                 DETECTION_INTERVAL_IN_MILLISECONDS,
@@ -363,19 +370,21 @@ public class LocationService extends Service implements
 
     protected void stopLocationUpdates() {
         Log.i(TAG, "stopLocationUpdates");
-        // The service doesn't update the location anymore
-        LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
-        // so I put mRunning to false
-        mRunning = false;
+        if (mGoogleApiClient.isConnected()) {
+            // The service doesn't update the location anymore
+            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, getLocationChangePendingIntent());
+            // so I put mRunning to false
+            mRunning = false;
 
-        // Remove all activity updates for the PendingIntent that was used to request activity
-        // updates.
-        ActivityRecognition.ActivityRecognitionApi.removeActivityUpdates(
-                mGoogleApiClient,
-                getActivityDetectionPendingIntent()
-        );
-        // VEDI SOPRA
-        //.setResultCallback(this);
+            // Remove all activity updates for the PendingIntent that was used to request activity
+            // updates.
+            ActivityRecognition.ActivityRecognitionApi.removeActivityUpdates(
+                    mGoogleApiClient,
+                    getActivityDetectionPendingIntent()
+            );
+            // VEDI SOPRA
+            //.setResultCallback(this);
+        }
     }
 
     @Override
@@ -407,9 +416,8 @@ public class LocationService extends Service implements
         Log.i(TAG, "Connection failed: ConnectionResult.getErrorCode() = " + connectionResult.getErrorCode());
     }
 
-    @Override
-    public void onLocationChanged(Location location) {
-        Log.i(TAG, "onLocationChanged");
+    private void locationChanged(Location location) {
+        Log.i(TAG, "locationChanged");
         mCurrentLocation = location;
 
         Calendar calendar = Calendar.getInstance();
@@ -418,34 +426,41 @@ public class LocationService extends Service implements
         String dateString = simpleDateFormat.format(date);
         Long timeInMillis = calendar.getTimeInMillis();
         Log.d(TAG, "Location " + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude() + " Time " + dateString);
-//
-//        if (!startGeofencing) {
-//            Log.i(TAG, "startGeofencing");
-//            // Create new file with name dateString
-//            locationFile = new LocationFile(this, dateString);
-//            startGeofencing = true;
-//
-//            // Set countdown
-//            setCountdown();
-//            // Save initial point
-//            simpleGeofence = new SimpleGeofence(mCurrentLocation, timeInMillis);
-//            enterPoint = mCurrentLocation;
-//        } else {
-//            float distance = enterPoint.distanceTo(mCurrentLocation);
-//            Log.i(TAG, "Distance: " + distance);
-//            if (distance > DISTANCE_RADIUS) {
-//                Log.i(TAG, "Distance greater");
-//                // Reset countdown
-//                setCountdown();
-//                // Save the new initial point
-//                simpleGeofence = new SimpleGeofence(mCurrentLocation, timeInMillis);
-//                enterPoint = mCurrentLocation;
-//            } else {
-//                simpleGeofence.addLocation(mCurrentLocation);
-//            }
-//        }
-//        // Save location into file
-//        locationFile.writeFile(timeInMillis + "," + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude());
+
+        startGeofencing = sharedPref.getBoolean(START_GEOFENCING, false);
+/*
+        if (!startGeofencing) {
+            Log.i(TAG, "startGeofencing");
+            // Create new file with name dateString
+            locationFile = new LocationFile(this, dateString);
+
+            startGeofencing = true;
+            SharedPreferences.Editor editor = sharedPref.edit();
+            editor.putBoolean(START_GEOFENCING, startGeofencing);
+            editor.apply();
+
+            // Set countdown
+            setCountdown();
+            // Save initial point
+            simpleGeofence = new SimpleGeofence(mCurrentLocation, timeInMillis);
+            enterPoint = mCurrentLocation;
+        } else {
+            float distance = enterPoint.distanceTo(mCurrentLocation);
+            Log.i(TAG, "Distance: " + distance);
+            if (distance > DISTANCE_RADIUS) {
+                Log.i(TAG, "Distance greater");
+                // Reset countdown
+                setCountdown();
+                // Save the new initial point
+                simpleGeofence = new SimpleGeofence(mCurrentLocation, timeInMillis);
+                enterPoint = mCurrentLocation;
+            } else {
+                simpleGeofence.addLocation(mCurrentLocation);
+            }
+        }
+        // Save location into file
+        locationFile.writeFile(timeInMillis + "," + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude());
+        */
     }
 
     private void setCountdown() {
@@ -454,7 +469,7 @@ public class LocationService extends Service implements
             Log.i(TAG, "Timer cancelled");
             timer.cancel();
         }
-        timer = new CountDownTimer(3 * minutes, 1 * minutes) {
+        timer = new CountDownTimer(1 * minutes, 1 * minutes) {
             @Override
             public void onTick(long millisUntilFinished) {
                 Log.i(TAG, Long.toString(millisUntilFinished));
@@ -465,6 +480,8 @@ public class LocationService extends Service implements
 //                timer = null;
                 Log.i(TAG, "Timer finished");
                 addGeofence();
+                rest = new Rest();
+                rest.new postValue().execute("{\"userID\":\"Michele\",\"dateStart\":\"1461349800000\",\"dateEnd\":\"1461351600000\",\"positions\":[{\"lat\":45.0630937,\"lng\":7.6538187},{\"lat\":45.0641065,\"lng\":7.6542666}]}");
             }
         };
         timer.start();
@@ -494,6 +511,14 @@ public class LocationService extends Service implements
     }
 
     /**
+     * Gets a PendingIntent to be sent for each location change.
+     */
+    private PendingIntent getLocationChangePendingIntent() {
+        Intent intent = new Intent(this, LocationChangedIntentService.class);
+        return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    /**
      * Gets a PendingIntent to be sent for each activity detection.
      */
     private PendingIntent getActivityDetectionPendingIntent() {
@@ -511,28 +536,6 @@ public class LocationService extends Service implements
     private PendingIntent getGeofenceTransitionPendingIntent() {
         Intent intent = new Intent(this, GeofenceTransitionsIntentService.class);
         return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
-    /**
-     * UpdatesBroadcastReceiver
-     */
-    public class UpdatesBroadcastReceiver extends BroadcastReceiver {
-        protected static final String TAG = "ActivityDetectionBR";
-
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            // Receives a DetectedActivity objects associated with the current state of the device.
-            if (DETECTED_ACTIVITY_ACTION.equals(action)) {
-                DetectedActivity updatedActivity = intent.getParcelableExtra(DETECTED_ACTIVITY_EXTRA);
-                updateDetectedActivity(updatedActivity);
-            }
-            // Receives the Accuracy for location updates
-            if (ACCURACY_ACTION.equals(action)) {
-                int mAccuracy = intent.getIntExtra(ACCURACY_EXTRA, LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
-                updateAccuracy(mAccuracy);
-            }
-        }
     }
 
     /**
@@ -596,10 +599,10 @@ public class LocationService extends Service implements
     // Remove the previous updates and request the new location updates
     private void removeRequestLocationUpdates() {
         if (mGoogleApiClient.isConnected()) {
-            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, getLocationChangePendingIntent());
             try {
                 LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient,
-                        mLocationRequest, this);
+                        mLocationRequest, getLocationChangePendingIntent());
             } catch (SecurityException e) {
                 e.printStackTrace();
             }

@@ -55,7 +55,8 @@ public class MainActivity extends AppCompatActivity implements
 
     private final String TAG = this.getClass().getSimpleName();
     private static MainActivity instance;
-    private Intent intent;
+    private Intent accuracyIntent;
+    private Intent start_intent;
     private boolean mServiceRunning;
 
     private static final String SERVICE_RUNNING = "service_running";
@@ -106,7 +107,6 @@ public class MainActivity extends AppCompatActivity implements
     private SharedPreferences sharedPref;
     FragmentManager fragmentManager;
 
-
     public static MainActivity getInstance() {
         Log.i("MainActivity", "getInstance");
         return instance;
@@ -137,7 +137,7 @@ public class MainActivity extends AppCompatActivity implements
         // Instance of the MainActivity
         instance = this;
         // Intent for start and stop LocationService
-        intent = new Intent(this, LocationService.class);
+//        intent = new Intent(this, LocationService.class);
         // Set to false cause LocationService doesn't running
 //        mServiceRunning = false;
         // Obtain fragment manager
@@ -147,14 +147,13 @@ public class MainActivity extends AppCompatActivity implements
 //            mServiceRunning = savedInstanceState.getBoolean(SERVICE_RUNNING);
 //        }
 
-        if (!sharedPref.contains(SignInActivity.PERSON_ID)) {
-            login();
-        }
+        login();
+
     }
 
     private void login() {
         Intent intentFromSettings = getIntent();
-        if (intentFromSettings.hasExtra(SignInActivity.SIGNING)) {
+        if (intentFromSettings != null && intentFromSettings.hasExtra(SignInActivity.SIGNING)) {
 //            if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
             if (isMyServiceRunning(LocationService.class)) {
                 Log.i(TAG, "startSigning.stopUpdates");
@@ -165,7 +164,9 @@ public class MainActivity extends AppCompatActivity implements
             signIntent.putExtra(SignInActivity.SIGNING, sign);
             startActivity(signIntent);
         } else {
-            startActivity(new Intent(this, SignInActivity.class));
+            if (!sharedPref.contains(SignInActivity.PERSON_ID)) {
+                startActivity(new Intent(this, SignInActivity.class));
+            }
         }
     }
 
@@ -182,12 +183,15 @@ public class MainActivity extends AppCompatActivity implements
         super.onResume();
 
 //        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
-        if (isMyServiceRunning(LocationService.class)) {
-            Intent localIntent = new Intent(LocationService.ACCURACY_ACTION);
-            localIntent.putExtra(LocationService.ACCURACY_EXTRA, LocationRequest.PRIORITY_HIGH_ACCURACY);
-            LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
-        }
+//        if (isMyServiceRunning(LocationService.class)) {
+//            Intent localIntent = new Intent(LocationService.ACCURACY_ACTION);
+//            localIntent.putExtra(LocationService.ACCURACY_EXTRA, LocationRequest.PRIORITY_HIGH_ACCURACY);
+//            LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
+//        }
 
+        if (isMyServiceRunning(LocationService.class)) {
+            startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_HIGH_ACCURACY));
+        }
         PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(this);
     }
 
@@ -197,13 +201,33 @@ public class MainActivity extends AppCompatActivity implements
         super.onPause();
 
 //        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
-        if (isMyServiceRunning(LocationService.class)) {
-            Intent localIntent = new Intent(LocationService.ACCURACY_ACTION);
-            localIntent.putExtra(LocationService.ACCURACY_EXTRA, LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
-            LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
-        }
+//        if (isMyServiceRunning(LocationService.class)) {
+//            Intent localIntent = new Intent(LocationService.ACCURACY_ACTION);
+//            localIntent.putExtra(LocationService.ACCURACY_EXTRA, LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+//            LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
+//        }
 
+        if (isMyServiceRunning(LocationService.class)) {
+            startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY));
+        }
         PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(this);
+    }
+
+    private Intent getStartLocationIntent() {
+        if (start_intent == null) {
+            start_intent = new Intent(this, LocationService.class);
+        }
+        start_intent.setAction(LocationService.START_LOCATION_ACTION);
+        return start_intent;
+    }
+
+    private Intent getAccuracyLocationIntent(int accuracy) {
+        if (accuracyIntent == null) {
+            accuracyIntent = new Intent(this, LocationService.class);
+        }
+        accuracyIntent.setAction(LocationService.ACCURACY_ACTION);
+        accuracyIntent.putExtra(LocationService.ACCURACY_EXTRA, accuracy);
+        return accuracyIntent;
     }
 
     @Override
@@ -430,21 +454,19 @@ public class MainActivity extends AppCompatActivity implements
 
     // Start the LocationService
     public void startLocationService() {
-        // Set the High accuracy
-        intent.putExtra(LocationService.ACCURACY_EXTRA, true);
-        startService(intent);
+        startService(getStartLocationIntent());
         mServiceRunning = true;
     }
 
     // Button handler of Stop Updates
     public void stopUpdates() {
         Log.i(TAG, "stopUpdates");
-        stopService(intent);
+        stopService(getStartLocationIntent());
         mServiceRunning = false;
 //        updateUI(false);
     }
 
-    // This method is invoke for check the result of startResolutionForResult in MyService
+    // This method is invoke for check the result of startResolutionForResult in LocationService
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         Log.i(TAG, "onActivityResult");
@@ -568,7 +590,7 @@ public class MainActivity extends AppCompatActivity implements
         }
     }
 
-    private boolean isMyServiceRunning(Class<?> serviceClass) {
+    public boolean isMyServiceRunning(Class<?> serviceClass) {
         ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
         for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
             if (serviceClass.getName().equals(service.service.getClassName())) {

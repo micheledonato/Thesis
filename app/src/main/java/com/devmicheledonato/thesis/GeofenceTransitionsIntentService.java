@@ -35,7 +35,6 @@ public class GeofenceTransitionsIntentService extends IntentService {
 
         }else if(geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT){
             Log.i(TAG, "EXIT");
-            // mod
         }else{
             // Log the error.
             Log.e(TAG, "Invalid type of Transition: " + geofenceTransition);

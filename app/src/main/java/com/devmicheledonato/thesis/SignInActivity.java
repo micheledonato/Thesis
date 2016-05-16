@@ -25,15 +25,29 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
+import com.loopj.android.http.AsyncHttpClient;
+import com.loopj.android.http.AsyncHttpResponseHandler;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+
+import cz.msebera.android.httpclient.Header;
+import cz.msebera.android.httpclient.HttpEntity;
+import cz.msebera.android.httpclient.entity.StringEntity;
+
 
 public class SignInActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -63,6 +77,8 @@ public class SignInActivity extends AppCompatActivity implements
     private String signing;
 
     private ProgressDialog progressDialog;
+
+    private StringBuffer chaine;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -161,6 +177,7 @@ public class SignInActivity extends AppCompatActivity implements
                 editor.putString(PERSON_EMAIL, personEmail);
                 editor.putString(PERSON_ID, personId);
                 editor.apply();
+                postSignInData();
                 if (personPhoto != null) {
                     downloadImage(personPhoto.toString());
                 } else {
@@ -329,12 +346,12 @@ public class SignInActivity extends AppCompatActivity implements
                         e.printStackTrace();
                     }
                 }
-                try {
-                    Log.i(TAG, "Sleep");
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+//                try {
+//                    Log.i(TAG, "Sleep");
+//                    Thread.sleep(3000);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
                 return bitmap;
             }
 
@@ -374,6 +391,47 @@ public class SignInActivity extends AppCompatActivity implements
         }
     }
 
+//    private static final String myUrl = "http://31.14.140.186:8080/mobilita-0.0.5-SNAPSHOT/getPlaces";
+
+    private void postSignInData() {
+//        AsyncHttpClient client = new AsyncHttpClient();
+//
+//        try {
+//            Log.i(TAG, "postSignInData");
+//            URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.5-SNAPSHOT");
+//
+//            JSONObject jsonUser = new JSONObject();
+//            jsonUser.put("userID", personId);
+//            jsonUser.put("email", personEmail);
+//            jsonUser.put("name", personName);
+//
+//            HttpEntity entity = new StringEntity(jsonUser.toString());
+//
+////            client.setConnectTimeout(30000);
+////            client.setResponseTimeout();
+//
+//            client.get(myUrl, new AsyncHttpResponseHandler() {
+//                @Override
+//                public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
+//                    Log.i(TAG, "Success " + statusCode);
+//                }
+//
+//                @Override
+//                public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
+//                    Log.i(TAG, "Failed " + statusCode);
+//                }
+//            });
+//        } catch (MalformedURLException e) {
+//            e.printStackTrace();
+//        } catch (JSONException e) {
+//            e.printStackTrace();
+//        } catch (UnsupportedEncodingException e) {
+//            e.printStackTrace();
+//        }
+
+        new postValue().execute();
+    }
+
     private void finishSignInActivity() {
         // Login ok, then finish this activity
         finish();
@@ -407,4 +465,62 @@ public class SignInActivity extends AppCompatActivity implements
 //            }
 //        }
 //    }
+
+    private class postValue extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... params) {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.5-SNAPSHOT/postUser");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestProperty("User-Agent", "");
+                connection.setRequestMethod("POST");
+                connection.setDoOutput(true);
+                connection.setConnectTimeout(30000);
+                connection.setReadTimeout(30000);
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.connect();
+
+                JSONObject jsonUser = new JSONObject();
+                jsonUser.put("userID", personId);
+                jsonUser.put("email", personEmail);
+                jsonUser.put("name", personName);
+
+                Log.e("JSON:", jsonUser.toString());
+                OutputStreamWriter out = new OutputStreamWriter(connection.getOutputStream());
+                out.write(jsonUser.toString());
+                out.close();
+
+//                int HttpResult = connection.getResponseCode();
+//                Log.e("Result:", "" + HttpResult);
+//                if(HttpResult == HttpURLConnection.HTTP_OK){
+//                }else{
+//                    Log.e("Insert response", connection.getResponseMessage());
+//                }
+
+                InputStream inputStream = connection.getInputStream();
+
+                BufferedReader rd = new BufferedReader(new InputStreamReader(inputStream));
+                String line = "";
+                chaine = new StringBuffer("");
+                chaine.delete(0, chaine.length());
+                while ((line = rd.readLine()) != null) {
+                    chaine.append(line);
+                }
+                Log.e("Insert response", chaine.toString());
+
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (JSONException e) {
+                e.printStackTrace();
+            } finally {
+                if (connection != null)
+                    connection.disconnect();
+            }
+            return null;
+        }
+    }
 }

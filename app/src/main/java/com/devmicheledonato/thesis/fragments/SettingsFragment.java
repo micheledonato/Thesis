@@ -12,6 +12,7 @@ import android.preference.PreferenceManager;
 import android.preference.SwitchPreference;
 import android.util.Log;
 
+import com.devmicheledonato.thesis.LocationService;
 import com.devmicheledonato.thesis.MainActivity;
 import com.devmicheledonato.thesis.R;
 import com.devmicheledonato.thesis.SignInActivity;
@@ -21,13 +22,16 @@ public class SettingsFragment extends PreferenceFragment {
 
 
     public static final String TAG = "SETFRAGMENT_TAG";
+    private MainActivity mainActivity;
     private SharedPreferences sharedPref;
+    private SwitchPreference prefUpdates;
 
     public SettingsFragment() {
         // Required empty public constructor
     }
 
     public static SettingsFragment newInstance() {
+
         SettingsFragment fragment = new SettingsFragment();
         return fragment;
     }
@@ -37,8 +41,14 @@ public class SettingsFragment extends PreferenceFragment {
         super.onCreate(savedInstanceState);
         // Load the preferences from an XML resource
         addPreferencesFromResource(R.xml.preferences);
-
         sharedPref = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        mainActivity = MainActivity.getInstance();
+        prefUpdates = (SwitchPreference) findPreference(MainActivity.KEY_PREF_UPDATES);
+        if(mainActivity.isMyServiceRunning(LocationService.class)){
+            prefUpdates.setChecked(true);
+        }else{
+            prefUpdates.setChecked(false);
+        }
 
         findPreference(MainActivity.KEY_PREF_LOGOUT).
                 setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
@@ -92,10 +102,5 @@ public class SettingsFragment extends PreferenceFragment {
         Intent i = new Intent(getActivity(), MainActivity.class);
         i.putExtra(SignInActivity.SIGNING, sign);
         startActivity(i);
-    }
-
-    public void updateSwitch(boolean update) {
-        SwitchPreference switchPreference = (SwitchPreference) findPreference(MainActivity.KEY_PREF_UPDATES);
-        switchPreference.setChecked(update);
     }
 }

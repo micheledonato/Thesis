@@ -135,7 +135,7 @@ public class DataFragment extends Fragment {
         protected String doInBackground(String... strings) {
             chaine = new StringBuffer("");
             try {
-                URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.2-SNAPSHOT/get");
+                URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.5-SNAPSHOT/getPlaces");
                 //URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.2-SNAPSHOT/get/nome_utente");
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 //                connection.setRequestProperty("User-Agent", "");
@@ -212,7 +212,7 @@ public class DataFragment extends Fragment {
         protected String doInBackground(String... strings) {
             HttpURLConnection connection = null;
             try {
-                URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.2-SNAPSHOT/post");
+                URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.5-SNAPSHOT/post");
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestProperty("User-Agent", "");
                 connection.setRequestMethod("POST");

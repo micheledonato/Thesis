@@ -27,12 +27,12 @@ public class SimpleGeofence {
     private final Location enterPoint;
     private final Long enterDate;
 
-    public SimpleGeofence(Location location, Long time) {
+    public SimpleGeofence(Location location, Long dateInMillis) {
+        // List of positions
         positionList = new ArrayList<Location>();
-
         this.enterPoint = location;
-        this.enterDate = time;
-
+        this.enterDate = dateInMillis;
+        // add the initial point
         positionList.add(enterPoint);
     }
 
@@ -42,21 +42,6 @@ public class SimpleGeofence {
 
     public void addLocation(Location location){
         positionList.add(location);
-    }
-
-    private LatLng getCentroid(){
-        Location loc;
-        double lat = 0, lng = 0;
-        int n = positionList.size();
-        Iterator<Location> itr = positionList.iterator();
-        while(itr.hasNext()){
-            loc = itr.next();
-            lat += loc.getLatitude();
-            lng += loc.getLongitude();
-        }
-        lat = lat/n;
-        lng = lng/n;
-        return new LatLng(lat, lng);
     }
 
     public double getLatitude(){
@@ -90,5 +75,21 @@ public class SimpleGeofence {
                 .setCircularRegion(mLatitude, mLongitude, mRadius)
                 .setExpirationDuration(mExpirationDuration)
                 .build();
+    }
+
+    // Computes the center of all positions
+    private LatLng getCentroid(){
+        Location loc;
+        double lat = 0, lng = 0;
+        int n = positionList.size();
+        Iterator<Location> itr = positionList.iterator();
+        while(itr.hasNext()){
+            loc = itr.next();
+            lat += loc.getLatitude();
+            lng += loc.getLongitude();
+        }
+        lat = lat/n;
+        lng = lng/n;
+        return new LatLng(lat, lng);
     }
 }
