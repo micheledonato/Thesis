@@ -2,11 +2,8 @@ package com.devmicheledonato.thesis;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.ActivityManager;
-import android.app.Application;
 import android.app.Fragment;
 import android.app.FragmentManager;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -27,14 +24,12 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 
 import android.support.v4.content.ContextCompat;
-import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
@@ -47,6 +42,9 @@ import com.devmicheledonato.thesis.fragments.SettingsFragment;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.LocationRequest;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.File;
 
@@ -123,8 +121,18 @@ public class MainActivity extends AppCompatActivity implements
 //            // TODO
 //        }
 
-        app = (ThesisApplication) getApplication();
+        app = ThesisApplication.getInstance();
 
+//        RESTcURL r = new RESTcURL();
+//        JSONObject jsonUser = new JSONObject();
+//        try {
+//            jsonUser.put("userID", "safasg");
+//            jsonUser.put("email", "email@puppo");
+//            jsonUser.put("name", "Puppo");
+//        } catch (JSONException e) {
+//            e.printStackTrace();
+//        }
+//        r.postUser(jsonUser);
 
         // Initialized with default settings
         // When false, the system sets the default values only if this method has never been called in the past
@@ -195,7 +203,7 @@ public class MainActivity extends AppCompatActivity implements
 //        }
 
         if (app.isMyServiceRunning(LocationService.class)) {
-            Log.i(TAG, "sdjgnsjgoasnoògbsk");
+            Log.i(TAG, "onResume - LocationService is running");
             startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_HIGH_ACCURACY));
         }
         PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(this);
@@ -271,7 +279,6 @@ public class MainActivity extends AppCompatActivity implements
     public boolean onNavigationItemSelected(MenuItem item) {
         selectDrawerItem(item);
         return true;
-//        return false;
     }
 
     private void setupHeaderView(NavigationView navigationView) {

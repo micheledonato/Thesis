@@ -118,7 +118,7 @@ public class DataFragment extends Fragment {
                 new readValue().execute();
             }
         });
-        new readValue().execute();
+//        new readValue().execute();
 
         return root;
     }

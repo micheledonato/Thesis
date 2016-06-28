@@ -3,10 +3,7 @@ package com.devmicheledonato.thesis;
 import android.Manifest;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -17,12 +14,12 @@ import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
-import android.widget.Toast;
 
+import com.devmicheledonato.thesis.simplegeofence.SimpleGeofence;
+import com.devmicheledonato.thesis.simplegeofence.SimpleGeofenceBuilder;
+import com.devmicheledonato.thesis.simplegeofence.SimpleGeofenceStore;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.PendingResult;
@@ -30,21 +27,20 @@ import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.DetectedActivity;
-import com.google.android.gms.location.FusedLocationProviderApi;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingRequest;
-import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResult;
 import com.google.android.gms.location.LocationSettingsStatusCodes;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -55,9 +51,6 @@ public class LocationService extends Service implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
         ResultCallback<LocationSettingsResult> {
-
-    // Variable for understand if Service is running or not
-    private static boolean mRunning;
 
     // TAG for debug
     private final String TAG = this.getClass().getSimpleName();
@@ -70,7 +63,7 @@ public class LocationService extends Service implements
     private static long seconds = 1000;
     private static long minutes = 60 * seconds;
 
-    private static final float DISTANCE_RADIUS = 50;
+    private static final float DISTANCE_RADIUS = 50; // meters
 
     /**
      * The desired interval for location updates. Inexact. Updates may be more or less frequent.
@@ -102,6 +95,9 @@ public class LocationService extends Service implements
     public static final long DETECTION_INTERVAL_IN_MILLISECONDS = 0;
 
     private static final String START_GEOFENCING = "START_GEOFENCING";
+    private static final String DISPLACEMENT = "DISPLACEMENT";
+    private static final String COUNTDOWN = "COUNTDOWN";
+    private static final String STR_LOCATION_FILE = "STR_LOCATION_FILE";
 
     // Json file
     File file;
@@ -138,22 +134,32 @@ public class LocationService extends Service implements
     private PendingIntent mGeofenceRequestIntent;
     private GeofencingRequest mGeofencingRequest;
 
-    private boolean first;
     private LocationFile locationFile;
+    private String str_location_file;
+
+    private PlaceFile geofenceFile;
+    private String str_place_file;
+
+    private SimpleGeofenceBuilder simpleGeofenceBuilder;
     private SimpleGeofence simpleGeofence;
-    private boolean startGeofencing;
+    private SimpleGeofenceStore simpleGeofenceStore;
+
     private CountDownTimer timer;
     private Location enterPoint;
     private SharedPreferences sharedPref;
-    private Rest rest;
-    private int count;
+    private RESTcURL mRESTcURL;
+    private String personID;
+    private static final String ERROR_ID = "error_id";
+
+    private boolean startGeofencing;
+    private boolean displacement;
+    private boolean countDownFinished;
+    private boolean boolGeofence;
+    private boolean boolCheckLocationSettings;
+    private boolean boolRemoveRequest;
 
     public LocationService() {
         Log.i(TAG, "MyService");
-    }
-
-    public static boolean isRunning() {
-        return mRunning;
     }
 
     public static Location getLocation() {
@@ -166,26 +172,45 @@ public class LocationService extends Service implements
         return null;
     }
 
+    private void saveStateInSharedPref() {
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putBoolean(START_GEOFENCING, startGeofencing);
+        editor.putBoolean(DISPLACEMENT, displacement);
+        editor.putBoolean(COUNTDOWN, countDownFinished);
+
+        // save the name of location file (dateString)
+        editor.putString(STR_LOCATION_FILE, str_location_file);
+
+        editor.apply();
+    }
+
+    private void restoreStateFromSharedPref() {
+        startGeofencing = sharedPref.getBoolean(START_GEOFENCING, false);
+        displacement = sharedPref.getBoolean(DISPLACEMENT, false);
+        countDownFinished = sharedPref.getBoolean(COUNTDOWN, false);
+
+        // restore the name of location file
+        str_location_file = sharedPref.getString(STR_LOCATION_FILE, null);
+        if (str_location_file != null) {
+            locationFile = new LocationFile(this, str_location_file);
+        }
+    }
+
     @Override
     public void onCreate() {
         Log.i(TAG, "onCreate");
         super.onCreate();
 
-//        first = true;
-//        highAccuracy = true;
-
-        count = 0;
-
-        mRunning = false;
         mCurrentLocation = null;
+        simpleGeofenceBuilder = null;
+        simpleGeofenceStore = new SimpleGeofenceStore(this);
 
-        simpleGeofence = null;
-
-        startGeofencing = false;
         sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
-        SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putBoolean(START_GEOFENCING, startGeofencing);
-        editor.apply();
+        restoreStateFromSharedPref();
+
+        mRESTcURL = new RESTcURL();
+
+        personID = sharedPref.getString(SignInActivity.PERSON_ID, ERROR_ID);
 
         // Get a receiver for broadcasts from ActivityDetectionIntentService.
 //        mBroadcastReceiver = new UpdatesBroadcastReceiver();
@@ -239,6 +264,20 @@ public class LocationService extends Service implements
                         return START_NOT_STICKY;
                     }
                 }
+                if (action.equals(GeofenceTransitionsIntentService.GEOFENCE_TRANSITION_ACTION)) {
+                    if (intent.hasExtra(GeofenceTransitionsIntentService.GEOFENCE_TRANSITION_ENTER_EXTRA)) {
+                        String id = intent.getStringExtra(GeofenceTransitionsIntentService.GEOFENCE_TRANSITION_ENTER_EXTRA);
+                        Log.i(TAG, "TRANSITION_ENTER");
+//                        geofenceTransition();
+                        return START_NOT_STICKY;
+                    }
+                    if (intent.hasExtra(GeofenceTransitionsIntentService.GEOFENCE_TRANSITION_EXIT_EXTRA)) {
+                        String id = intent.getStringExtra(GeofenceTransitionsIntentService.GEOFENCE_TRANSITION_EXIT_EXTRA);
+                        Log.i(TAG, "TRANSITION_EXIT");
+                        geofenceTransition();
+                        return START_NOT_STICKY;
+                    }
+                }
                 // Receives the Accuracy for location updates
                 if (ACCURACY_ACTION.equals(action)) {
                     if (intent.hasExtra(ACCURACY_EXTRA)) {
@@ -253,6 +292,7 @@ public class LocationService extends Service implements
                         checkLocationSettings();
                     } else if (!mGoogleApiClient.isConnected() && !mGoogleApiClient.isConnecting()) {
                         Log.i(TAG, "GoogleApiClient not Connected");
+                        boolCheckLocationSettings = true;
                         mGoogleApiClient.connect();
                     }
                     return START_NOT_STICKY;
@@ -266,6 +306,7 @@ public class LocationService extends Service implements
 
         return START_NOT_STICKY;
     }
+
 
     @Override
     public void onDestroy() {
@@ -373,8 +414,6 @@ public class LocationService extends Service implements
         if (mGoogleApiClient.isConnected()) {
             // The service doesn't update the location anymore
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, getLocationChangePendingIntent());
-            // so I put mRunning to false
-            mRunning = false;
 
             // Remove all activity updates for the PendingIntent that was used to request activity
             // updates.
@@ -397,8 +436,21 @@ public class LocationService extends Service implements
         } catch (SecurityException e) {
             e.printStackTrace();
         }
-        checkLocationSettings();
-//        startLocationUpdates();
+
+        if (boolGeofence) {
+            addGeofence();
+            boolGeofence = false;
+        }
+
+        if (boolRemoveRequest) {
+            removeRequestLocationUpdates();
+            boolRemoveRequest = false;
+        }
+
+        if (boolCheckLocationSettings) {
+            checkLocationSettings();
+            boolCheckLocationSettings = false;
+        }
     }
 
     @Override
@@ -418,8 +470,15 @@ public class LocationService extends Service implements
 
     private void locationChanged(Location location) {
         Log.i(TAG, "locationChanged");
-        mCurrentLocation = location;
 
+        // if the countdown is over, I do nothing
+        // this is for prevent if a location update should come after the end of the countdown
+        if (countDownFinished) {
+            // countDownFinished will reset when a geofence transition will arrive.
+            return;
+        }
+
+        mCurrentLocation = location;
         Calendar calendar = Calendar.getInstance();
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
         Date date = calendar.getTime();
@@ -427,40 +486,35 @@ public class LocationService extends Service implements
         Long timeInMillis = calendar.getTimeInMillis();
         Log.d(TAG, "Location " + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude() + " Time " + dateString);
 
-        startGeofencing = sharedPref.getBoolean(START_GEOFENCING, false);
-/*
         if (!startGeofencing) {
             Log.i(TAG, "startGeofencing");
             // Create new file with name dateString
             locationFile = new LocationFile(this, dateString);
-
+            str_location_file = dateString;
+            // Start the geofencing
             startGeofencing = true;
-            SharedPreferences.Editor editor = sharedPref.edit();
-            editor.putBoolean(START_GEOFENCING, startGeofencing);
-            editor.apply();
-
             // Set countdown
             setCountdown();
             // Save initial point
-            simpleGeofence = new SimpleGeofence(mCurrentLocation, timeInMillis);
-            enterPoint = mCurrentLocation;
+            simpleGeofenceBuilder = new SimpleGeofenceBuilder(mCurrentLocation, timeInMillis);
         } else {
-            float distance = enterPoint.distanceTo(mCurrentLocation);
+            float distance = simpleGeofenceBuilder.getEnterPoint().distanceTo(mCurrentLocation);
             Log.i(TAG, "Distance: " + distance);
             if (distance > DISTANCE_RADIUS) {
                 Log.i(TAG, "Distance greater");
+                // Means there are displacement locations
+                displacement = true;
                 // Reset countdown
                 setCountdown();
                 // Save the new initial point
-                simpleGeofence = new SimpleGeofence(mCurrentLocation, timeInMillis);
-                enterPoint = mCurrentLocation;
+                simpleGeofenceBuilder = new SimpleGeofenceBuilder(mCurrentLocation, timeInMillis);
             } else {
-                simpleGeofence.addLocation(mCurrentLocation);
+                // insert new location in the geofence's list
+                simpleGeofenceBuilder.addLocation(mCurrentLocation);
             }
         }
         // Save location into file
         locationFile.writeFile(timeInMillis + "," + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude());
-        */
     }
 
     private void setCountdown() {
@@ -479,28 +533,71 @@ public class LocationService extends Service implements
             public void onFinish() {
 //                timer = null;
                 Log.i(TAG, "Timer finished");
-                addGeofence();
-                rest = new Rest();
-                rest.new postValue().execute("{\"userID\":\"Michele\",\"dateStart\":\"1461349800000\",\"dateEnd\":\"1461351600000\",\"positions\":[{\"lat\":45.0630937,\"lng\":7.6538187},{\"lat\":45.0641065,\"lng\":7.6542666}]}");
+                stopLocationUpdates();
+                createRequestGeofence();
+                // if there are displacement locations, I send data to server
+                if (displacement) {
+                    Log.i(TAG, "There is displacement locations");
+                    mRESTcURL.postDisplacement(locationFile.fileToJson());
+                    displacement = false;
+                }
+                // delete file
+                locationFile.deleteFile();
+                countDownFinished = true;
+                saveStateInSharedPref();
             }
         };
         timer.start();
     }
 
-    private void addGeofence() {
+    private void createRequestGeofence() {
         Log.i(TAG, "addGeofence");
-        stopLocationUpdates();
-        Geofence geofence = simpleGeofence.prepareGeofence();
+        // Create a SimpleGeofence
+        simpleGeofence = simpleGeofenceBuilder.prepareGeofence();
+        // Save SimpleGeofence in the store
+        simpleGeofenceStore.setGeofence(simpleGeofence.getId(), simpleGeofence);
         // Get the PendingIntent for the geofence monitoring request.
-        // Send a request to add the current geofence.
         mGeofenceRequestIntent = getGeofenceTransitionPendingIntent();
-        mGeofencingRequest = getGeofencingRequest(geofence);
-        try {
-            LocationServices.GeofencingApi.addGeofences(mGoogleApiClient, mGeofencingRequest, mGeofenceRequestIntent);
-        } catch (SecurityException securityException) {
-            securityException.printStackTrace();
-        }
+        // Send a request to add the current geofence.
+        mGeofencingRequest = getGeofencingRequest(simpleGeofence.toGeofence());
+        addGeofence();
         startGeofencing = false;
+    }
+
+    private void addGeofence() {
+        if (mGoogleApiClient.isConnected()) {
+            try {
+                LocationServices.GeofencingApi.addGeofences(mGoogleApiClient, mGeofencingRequest, mGeofenceRequestIntent);
+
+                // create a file for saving geofence's information
+                str_place_file = "Place" + simpleGeofenceBuilder.getEnterDate();
+                geofenceFile = new PlaceFile(this, str_place_file);
+                geofenceFile.writeFile(simpleGeofence.getLatitude() + ","
+                        + simpleGeofence.getLongitude() + ","
+                        + simpleGeofenceBuilder.getEnterDate());
+
+            } catch (SecurityException securityException) {
+                securityException.printStackTrace();
+            }
+        } else {
+            boolGeofence = true;
+            mGoogleApiClient.connect();
+        }
+    }
+
+    private void geofenceTransition() {
+        Log.i(TAG, "geofenceTransition");
+
+        // when I leave the geofence, I get date of exit and send all geofence's information to server
+        Calendar calendar = Calendar.getInstance();
+        Long dateExit = calendar.getTimeInMillis();
+        geofenceFile = new PlaceFile(this, str_place_file);
+        geofenceFile.writeFile(Long.toString(dateExit));
+        Log.i(TAG, "postPlace");
+        mRESTcURL.postPlace(geofenceFile.fileToJson());
+
+        // restart location updates
+        startLocationUpdates();
     }
 
     private GeofencingRequest getGeofencingRequest(Geofence geofence) {
@@ -607,6 +704,7 @@ public class LocationService extends Service implements
                 e.printStackTrace();
             }
         } else {
+            boolRemoveRequest = true;
             mGoogleApiClient.connect();
         }
     }

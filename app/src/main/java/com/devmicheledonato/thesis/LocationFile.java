@@ -45,8 +45,12 @@ public class LocationFile {
 //        channel = null;
 //        lock = null;
 
-//        SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(context);
-//        personID = sharedPref.getString(SignInActivity.PERSON_ID, ERROR_ID);
+        SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(context);
+        personID = sharedPref.getString(SignInActivity.PERSON_ID, ERROR_ID);
+    }
+
+    public boolean deleteFile(){
+        return file.delete();
     }
 
 //    public void writeFile(String line) {
@@ -158,7 +162,12 @@ public class LocationFile {
         JSONObject total = new JSONObject();
         JSONArray jsonArray = new JSONArray();
 
-        String lastUpdate = null;
+        try {
+            total.put("userID", personID);
+            total.put("positions", jsonArray);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
 
         FileReader fileReader = null;
         BufferedReader bufferedReader = null;
@@ -174,9 +183,6 @@ public class LocationFile {
                     jsonObject.put("lat", arrayLine[1]);
                     jsonObject.put("lng", arrayLine[2]);
                     jsonObject.put("date", arrayLine[0]);
-                    lastUpdate = arrayLine[0];
-                    jsonObject.put("dayOfWeek", "2");
-                    jsonObject.put("hourOfDay", "4");
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -199,14 +205,6 @@ public class LocationFile {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-        }
-
-        try {
-            total.put("userID", personID);
-            total.put("lastUpdate", lastUpdate);
-            total.put("positions", jsonArray);
-        } catch (JSONException e) {
-            e.printStackTrace();
         }
 
         // Send to WebServer

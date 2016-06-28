@@ -44,7 +44,7 @@ public class SettingsFragment extends PreferenceFragment {
         addPreferencesFromResource(R.xml.preferences);
         sharedPref = PreferenceManager.getDefaultSharedPreferences(getActivity());
         prefUpdates = (SwitchPreference) findPreference(MainActivity.KEY_PREF_UPDATES);
-        app = (ThesisApplication) getActivity().getApplication();
+        app = ThesisApplication.getInstance();
         if(app.isMyServiceRunning(LocationService.class)){
             prefUpdates.setChecked(true);
         }else{
