@@ -3,6 +3,7 @@ package com.devmicheledonato.thesis.fragments;
 
 import android.Manifest;
 import android.app.Fragment;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
@@ -12,10 +13,13 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 
 import com.devmicheledonato.thesis.LocationService;
 import com.devmicheledonato.thesis.MainActivity;
 import com.devmicheledonato.thesis.R;
+import com.devmicheledonato.thesis.simplegeofence.SimpleGeofence;
+import com.devmicheledonato.thesis.simplegeofence.SimpleGeofenceStore;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
@@ -24,6 +28,18 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
+
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
 
 
 /**
@@ -46,6 +62,20 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
     private GoogleMap mMap;
     SupportMapFragment mapFragment;
     private MapView mMapView;
+
+    private Context context;
+    // File
+    private File file;
+    // Writer for json file
+    private FileWriter fileWriter;
+    // Buffer for FileWriter
+    private BufferedWriter bufferedWriter;
+    // To print on file
+    private PrintWriter printWriter;
+
+    private ArrayList<String> array;
+    private SimpleGeofenceStore simpleGeofenceStore;
+    private SimpleGeofence geofence;
 
     public MapsFragment() {
         // Required empty public constructor
@@ -84,6 +114,14 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
             mParam1 = getArguments().getString(ARG_PARAM1);
             mParam2 = getArguments().getString(ARG_PARAM2);
         }
+
+
+        context = getActivity();
+        file = new File(context.getExternalCacheDir(), "simpleGeofencesID");
+
+        array = new ArrayList<>();
+        simpleGeofenceStore = new SimpleGeofenceStore(context);
+
 //        mapFragment.getMapAsync(this);
 
 //        MapFragment mapFragment = (MapFragment) getFragmentManager().findFragmentById(R.id.map);
@@ -121,6 +159,9 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
                 mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
             }
         }
+
+        // add geofence's marker on map
+        addGeofenceMarker();
     }
 
     @Override
@@ -142,7 +183,58 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
 
         mMapView.getMapAsync(this);
 
+        Button button = (Button) root.findViewById(R.id.refresh);
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                addGeofenceMarker();
+            }
+        });
+
         return root;
+    }
+
+    private void addGeofenceMarker() {
+        readFile();
+        for (String id : array) {
+            geofence = simpleGeofenceStore.getGeofence(id);
+
+            MarkerOptions markerOptions = new MarkerOptions();
+            markerOptions.position(new LatLng(geofence.getLatitude(), geofence.getLongitude()));
+            markerOptions.title("G-" + id);
+
+            mMap.addMarker(markerOptions);
+        }
+    }
+
+    private void readFile() {
+        FileReader fileReader = null;
+        BufferedReader bufferedReader = null;
+        try {
+            fileReader = new FileReader(file);
+            bufferedReader = new BufferedReader(fileReader);
+            String line;
+            while ((line = bufferedReader.readLine()) != null) {
+                array.add(line);
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (bufferedReader != null)
+                    bufferedReader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            try {
+                if (fileReader != null)
+                    fileReader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override

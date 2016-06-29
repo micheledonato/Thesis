@@ -41,6 +41,9 @@ public class RESTcURL {
     }
 
     private void postData(String url, String tag, JSONObject jsonObject) {
+
+        Log.i(TAG, jsonObject.toString());
+
         JsonObjectRequest request = new JsonObjectRequest(Request.Method.POST, url, jsonObject,
                 new Response.Listener<JSONObject>() {
                     @Override

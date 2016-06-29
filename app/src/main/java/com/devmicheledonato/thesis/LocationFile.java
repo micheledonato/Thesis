@@ -34,7 +34,7 @@ public class LocationFile {
     // To print on file
     private PrintWriter printWriter;
 
-//    FileChannel channel;
+    //    FileChannel channel;
 //    FileLock lock;
     private String personID;
     private static final String ERROR_ID = "error_id";
@@ -49,8 +49,11 @@ public class LocationFile {
         personID = sharedPref.getString(SignInActivity.PERSON_ID, ERROR_ID);
     }
 
-    public boolean deleteFile(){
-        return file.delete();
+    public boolean deleteFile() {
+        if (file.exists()) {
+            return file.delete();
+        }
+        return false;
     }
 
 //    public void writeFile(String line) {
@@ -208,7 +211,7 @@ public class LocationFile {
         }
 
         // Send to WebServer
-        Log.i(TAG, total.toString());
+//        Log.i(TAG, total.toString());
         return total;
     }
 

@@ -53,6 +53,8 @@ public class MainActivity extends AppCompatActivity implements
         NavigationView.OnNavigationItemSelectedListener {
 
     private final String TAG = this.getClass().getSimpleName();
+    private static final boolean DEBUG = false;
+
     private static MainActivity instance;
     private Intent accuracyIntent;
     private Intent start_intent;
@@ -108,14 +110,14 @@ public class MainActivity extends AppCompatActivity implements
     private ThesisApplication app;
 
     public static MainActivity getInstance() {
-        Log.i("MainActivity", "getInstance");
+        if (DEBUG) Log.i("MainActivity", "getInstance");
         return instance;
     }
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.i(TAG, "onCreate");
+        if (DEBUG) Log.i(TAG, "onCreate");
 
 //           if(checkPlayServices()){
 //            // TODO
@@ -140,7 +142,7 @@ public class MainActivity extends AppCompatActivity implements
         // Obtain the default shared preferences
         sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
 //        Boolean updates = sharedPref.getBoolean(KEY_PREF_UPDATES, false);
-//        Log.i(TAG, "updates: " + updates);
+//        if (DEBUG) Log.i(TAG, "updates: " + updates);
 
 //        sharedPref = getSharedPreferences(getString(R.string.preference_file_key), MODE_PRIVATE);
 
@@ -169,7 +171,7 @@ public class MainActivity extends AppCompatActivity implements
         if (intentFromSettings != null && intentFromSettings.hasExtra(SignInActivity.SIGNING)) {
 //            if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
             if (app.isMyServiceRunning(LocationService.class)) {
-                Log.i(TAG, "startSigning.stopUpdates");
+                if (DEBUG) Log.i(TAG, "startSigning.stopUpdates");
                 stopUpdates();
             }
             String sign = intentFromSettings.getStringExtra(SignInActivity.SIGNING);
@@ -192,7 +194,7 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     protected void onResume() {
-        Log.i(TAG, "onResume");
+        if (DEBUG) Log.i(TAG, "onResume");
         super.onResume();
 
 //        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
@@ -203,7 +205,7 @@ public class MainActivity extends AppCompatActivity implements
 //        }
 
         if (app.isMyServiceRunning(LocationService.class)) {
-            Log.i(TAG, "onResume - LocationService is running");
+            if (DEBUG) Log.i(TAG, "onResume - LocationService is running");
             startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_HIGH_ACCURACY));
         }
         PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(this);
@@ -211,7 +213,7 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     protected void onPause() {
-        Log.i(TAG, "onPause");
+        if (DEBUG) Log.i(TAG, "onPause");
         super.onPause();
 
 //        if (sharedPref.getBoolean(KEY_PREF_UPDATES, false) && mServiceRunning) {
@@ -247,7 +249,7 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        Log.i(TAG, "onDestroy");
+        if (DEBUG) Log.i(TAG, "onDestroy");
     }
 
     private void initNavDrawer() {
@@ -369,7 +371,7 @@ public class MainActivity extends AppCompatActivity implements
     private void updateFragment(Class fragmentClass, String tagFragment) {
         Fragment f = fragmentManager.findFragmentByTag(tagFragment);
         if (f == null) {
-            Log.i(TAG, "Fragment doesn't exist");
+            if (DEBUG) Log.i(TAG, "Fragment doesn't exist");
             try {
                 f = (Fragment) fragmentClass.newInstance();
                 fragmentManager.beginTransaction().replace(R.id.flContent, f, tagFragment).commit();
@@ -449,7 +451,7 @@ public class MainActivity extends AppCompatActivity implements
 
     // Button handler of Start Updates
     private void startUpdates() {
-        Log.i(TAG, "startUpdates");
+        if (DEBUG) Log.i(TAG, "startUpdates");
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED ||
@@ -459,7 +461,7 @@ public class MainActivity extends AppCompatActivity implements
             // Request the Location Permissions
             requestLocationPermission(REQUEST_SETTINGS_LOCATION);
         } else {
-            Log.i(TAG, "startUpdates.startService");
+            if (DEBUG) Log.i(TAG, "startUpdates.startService");
             startLocationService();
 //            updateUI(true);
         }
@@ -473,7 +475,7 @@ public class MainActivity extends AppCompatActivity implements
 
     // Button handler of Stop Updates
     public void stopUpdates() {
-        Log.i(TAG, "stopUpdates");
+        if (DEBUG) Log.i(TAG, "stopUpdates");
         stopService(getStartLocationIntent());
         mServiceRunning = false;
 //        updateUI(false);
@@ -482,17 +484,19 @@ public class MainActivity extends AppCompatActivity implements
     // This method is invoke for check the result of startResolutionForResult in LocationService
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        Log.i(TAG, "onActivityResult");
+        if (DEBUG) Log.i(TAG, "onActivityResult");
         switch (requestCode) {
             // Check for the integer request code originally supplied to startResolutionForResult().
             case REQUEST_CHECK_SETTINGS:
                 switch (resultCode) {
                     case Activity.RESULT_OK:
-                        Log.i(TAG, "User agreed to make required location settings changes.");
+                        if (DEBUG)
+                            Log.i(TAG, "User agreed to make required location settings changes.");
                         startLocationService();
                         break;
                     case Activity.RESULT_CANCELED:
-                        Log.i(TAG, "User chose not to make required location settings changes.");
+                        if (DEBUG)
+                            Log.i(TAG, "User chose not to make required location settings changes.");
 //                        updateUI(false);
                         break;
                 }
@@ -501,7 +505,7 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     public void requestLocationPermission(final int reqCode) {
-        Log.i(TAG, "Position permission has NOT been granted. Requesting permission.");
+        if (DEBUG) Log.i(TAG, "Position permission has NOT been granted. Requesting permission.");
         if (ActivityCompat.shouldShowRequestPermissionRationale(this,
                 Manifest.permission.ACCESS_FINE_LOCATION) ||
                 ActivityCompat.shouldShowRequestPermissionRationale(this,
@@ -509,7 +513,8 @@ public class MainActivity extends AppCompatActivity implements
             // Provide an additional rationale to the user if the permission was not granted
             // and the user would benefit from additional context for the use of the permission.
             // For example if the user has previously denied the permission.
-            Log.i(TAG, "Displaying position permission rationale to provide additional context.");
+            if (DEBUG)
+                Log.i(TAG, "Displaying position permission rationale to provide additional context.");
             Snackbar.make(mLayout, R.string.permission_location_rationale,
                     Snackbar.LENGTH_INDEFINITE)
                     .setAction(R.string.ok, new View.OnClickListener() {
@@ -521,7 +526,7 @@ public class MainActivity extends AppCompatActivity implements
                     })
                     .show();
         } else {
-            Log.i(TAG, "No rationale");
+            if (DEBUG) Log.i(TAG, "No rationale");
             // Contact permissions have not been granted yet. Request them directly.
             ActivityCompat.requestPermissions(this, PERMISSION_LOCATION, reqCode);
         }
@@ -529,7 +534,7 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        Log.i(TAG, "onRequestPermissionsResult");
+        if (DEBUG) Log.i(TAG, "onRequestPermissionsResult");
         switch (requestCode) {
             case REQUEST_SETTINGS_LOCATION: {
                 // If request is cancelled, the result arrays are empty.
@@ -557,7 +562,7 @@ public class MainActivity extends AppCompatActivity implements
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Log.i(TAG, "req_maps_location");
+                    if (DEBUG) Log.i(TAG, "req_maps_location");
                     // permission was granted
 //                    Fragment f = fragmentManager.findFragmentByTag(MAPS_TAG);
 //                    Fragment mf = MapsFragment.newInstance();
@@ -589,15 +594,15 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        Log.i(TAG, "onSharedPreferenceChanged");
+        if (DEBUG) Log.i(TAG, "onSharedPreferenceChanged");
         if (key.equals(KEY_PREF_UPDATES)) {
             boolean on = sharedPreferences.getBoolean(key, false);
             if (on) {
-                Log.i(TAG, "ON");
+                if (DEBUG) Log.i(TAG, "ON");
                 startUpdates();
             }
             if (!on) {
-                Log.i(TAG, "OFF");
+                if (DEBUG) Log.i(TAG, "OFF");
                 stopUpdates();
             }
         }
@@ -611,7 +616,7 @@ public class MainActivity extends AppCompatActivity implements
                 googleAPI.getErrorDialog(this, result,
                         PLAY_SERVICES_RESOLUTION_REQUEST).show();
             } else {
-                Log.i(TAG, "This device is not supported.");
+                if (DEBUG) Log.i(TAG, "This device is not supported.");
                 finish();
             }
             return false;

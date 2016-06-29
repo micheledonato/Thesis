@@ -9,6 +9,7 @@ public class SimpleGeofence {
     private final double mLatitude;
     private final double mLongitude;
     private final float mRadius;
+    private Long enterDate;
     private long mExpirationDuration;
     private int mTransitionType;
 
@@ -49,6 +50,13 @@ public class SimpleGeofence {
     }
     public int getTransitionType() {
         return mTransitionType;
+    }
+
+    public Long getEnterDate(){
+        return enterDate;
+    }
+    public void setEnterDate(Long value){
+        this.enterDate = value;
     }
 
     /**
