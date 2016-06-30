@@ -565,7 +565,6 @@ public class LocationService extends Service implements
     }
 
     private void createRequestGeofence() {
-        Log.i(TAG, "addGeofence");
         // Create a SimpleGeofence
         simpleGeofence = simpleGeofenceBuilder.prepareGeofence();
         // Save SimpleGeofence in the store
@@ -574,6 +573,7 @@ public class LocationService extends Service implements
         mGeofenceRequestIntent = getGeofenceTransitionPendingIntent();
         // Send a request to add the current geofence.
         mGeofencingRequest = getGeofencingRequest(simpleGeofence.toGeofence());
+        Log.i(TAG, "addGeofence G-" + simpleGeofence.getId());
         addGeofence();
         startGeofencing = false;
     }
@@ -595,6 +595,11 @@ public class LocationService extends Service implements
     private void geofenceTransitionEnter(String id) {
         Log.i(TAG, "ENTER G-" + id);
 
+        // stop previous countdown
+        if (timer != null) {
+            Log.i(TAG, "Timer cancelled");
+            timer.cancel();
+        }
         // it's possible to restart a new countdown
         countDownFinished = true;
         // stop location updates

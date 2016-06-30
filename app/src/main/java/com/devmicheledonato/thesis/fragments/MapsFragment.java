@@ -155,7 +155,7 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
             Location loc;
             if ((loc = LocationService.getLocation()) != null) {
                 CameraPosition cameraPosition = new CameraPosition.Builder()
-                        .target(new LatLng(loc.getLatitude(), loc.getLongitude())).zoom(12).build();
+                        .target(new LatLng(loc.getLatitude(), loc.getLongitude())).zoom(13).build();
                 mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
             }
         }
@@ -195,15 +195,17 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
     }
 
     private void addGeofenceMarker() {
-        readFile();
-        for (String id : array) {
-            geofence = simpleGeofenceStore.getGeofence(id);
+        if (file.exists()) {
+            readFile();
+            for (String id : array) {
+                geofence = simpleGeofenceStore.getGeofence(id);
 
-            MarkerOptions markerOptions = new MarkerOptions();
-            markerOptions.position(new LatLng(geofence.getLatitude(), geofence.getLongitude()));
-            markerOptions.title("G-" + id);
+                MarkerOptions markerOptions = new MarkerOptions();
+                markerOptions.position(new LatLng(geofence.getLatitude(), geofence.getLongitude()));
+                markerOptions.title("G-" + id);
 
-            mMap.addMarker(markerOptions);
+                mMap.addMarker(markerOptions);
+            }
         }
     }
 

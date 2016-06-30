@@ -46,6 +46,7 @@ public class SignInActivity extends AppCompatActivity implements
         GoogleApiClient.OnConnectionFailedListener {
 
     private final String TAG = this.getClass().getSimpleName();
+    private final boolean DEBUG = false;
 
     private static final int RC_SIGN_IN = 9001;
     private static final int RC_CONNECTION = 1986;
@@ -155,7 +156,7 @@ public class SignInActivity extends AppCompatActivity implements
     }
 
     private void handleSignInResult(GoogleSignInResult result) {
-        Log.d(TAG, "handleSignInResult:" + result.isSuccess());
+        if (DEBUG) Log.i(TAG, "handleSignInResult:" + result.isSuccess());
         if (result.isSuccess()) {
             // Signed in successfully, show authenticated UI.
             GoogleSignInAccount acct = result.getSignInAccount();
@@ -165,8 +166,9 @@ public class SignInActivity extends AppCompatActivity implements
                 personId = acct.getId();
                 personPhoto = acct.getPhotoUrl();
 //              Plus.PeopleApi.load(mGoogleApiClient, "me").setResultCallback(this);
-                Log.i(TAG, "Name " + personName + " ID " + personId + " Email " + personEmail +
-                        " Uri " + personPhoto);
+                if (DEBUG)
+                    Log.i(TAG, "Name " + personName + " ID " + personId + " Email " + personEmail +
+                            " Uri " + personPhoto);
 
                 SharedPreferences.Editor editor = sharedPref.edit();
                 editor.putString(PERSON_NAME, personName);
@@ -184,7 +186,7 @@ public class SignInActivity extends AppCompatActivity implements
             }
         } else {
             // Signed out, show unauthenticated UI.
-            Log.i(TAG, "Signed failed");
+            if (DEBUG) Log.i(TAG, "Signed failed");
         }
     }
 
@@ -193,9 +195,9 @@ public class SignInActivity extends AppCompatActivity implements
                 new ResultCallback<Status>() {
                     @Override
                     public void onResult(Status status) {
-                        Log.i(TAG, "signOut.onResult");
+                        if (DEBUG) Log.i(TAG, "signOut.onResult");
                         if (status.isSuccess()) {
-                            Log.i(TAG, "SIGNOUT");
+                            if (DEBUG) Log.i(TAG, "SIGNOUT");
                             SharedPreferences.Editor editor = sharedPref.edit();
                             editor.clear();
                             editor.apply();
@@ -210,7 +212,7 @@ public class SignInActivity extends AppCompatActivity implements
                     @Override
                     public void onResult(Status status) {
                         if (status.isSuccess()) {
-                            Log.i(TAG, "REVOKE");
+                            if (DEBUG) Log.i(TAG, "REVOKE");
                             clearApplicationData();
                         }
                     }
@@ -225,7 +227,7 @@ public class SignInActivity extends AppCompatActivity implements
             for (String s : children) {
                 if (!s.equals("lib")) {
                     deleteDir(new File(appDir, s));
-                    Log.i("TAG", "File /data/data/APP_PACKAGE/" + s + " DELETED");
+                    if (DEBUG) Log.i("TAG", "File /data/data/APP_PACKAGE/" + s + " DELETED");
                 }
             }
         }
@@ -237,7 +239,7 @@ public class SignInActivity extends AppCompatActivity implements
                 for (String s : children) {
                     if (!s.equals("lib")) {
                         deleteDir(new File(appDir, s));
-                        Log.i("TAG", "File /data/data/APP_PACKAGE/" + s + " DELETED");
+                        if (DEBUG) Log.i("TAG", "File /data/data/APP_PACKAGE/" + s + " DELETED");
                     }
                 }
             }
@@ -263,29 +265,29 @@ public class SignInActivity extends AppCompatActivity implements
         // be available.
         Log.d(TAG, "onConnectionFailed:" + connectionResult);
         if (connectionResult.hasResolution()) {
-            Log.i(TAG, "hasResolution");
+            if (DEBUG) Log.i(TAG, "hasResolution");
             try {
                 connectionResult.startResolutionForResult(this, RC_CONNECTION);
             } catch (IntentSender.SendIntentException e) {
                 e.printStackTrace();
             }
         } else {
-            Log.i(TAG, "not Resolution");
+            if (DEBUG) Log.i(TAG, "not Resolution");
             int errorCode = connectionResult.getErrorCode();
             String errorMessage = connectionResult.getErrorMessage();
-            Log.i(TAG, "ErrorCode: " + errorCode + " ErrorMessage: " + errorMessage);
+            if (DEBUG) Log.i(TAG, "ErrorCode: " + errorCode + " ErrorMessage: " + errorMessage);
         }
     }
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-        Log.i(TAG, "onConnected");
+        if (DEBUG) Log.i(TAG, "onConnected");
         // Intent for logout or disconnect
         Intent intent = getIntent();
         if (intent.hasExtra(SIGNING)) {
             signing = intent.getStringExtra(SIGNING);
             if (LOGOUT.equals(signing)) {
-                Log.i(TAG, "intent_logout");
+                if (DEBUG) Log.i(TAG, "intent_logout");
                 signOut();
             }
             if (DISCONNECT.equals(signing)) {
@@ -304,7 +306,7 @@ public class SignInActivity extends AppCompatActivity implements
 
         progressDialog = new ProgressDialog(this);
 
-        Log.i(TAG, "downloadImage");
+        if (DEBUG) Log.i(TAG, "downloadImage");
         new AsyncTask<Void, Void, Bitmap>() {
 
             @Override
@@ -318,7 +320,7 @@ public class SignInActivity extends AppCompatActivity implements
 
             @Override
             protected Bitmap doInBackground(Void... params) {
-                Log.i(TAG, "doInBackground");
+                if (DEBUG) Log.i(TAG, "doInBackground");
                 Bitmap bitmap = null;
                 HttpURLConnection connection = null;
                 InputStream is = null;
@@ -343,7 +345,7 @@ public class SignInActivity extends AppCompatActivity implements
                     }
                 }
 //                try {
-//                    Log.i(TAG, "Sleep");
+//                    if (DEBUG) Log.i(TAG, "Sleep");
 //                    Thread.sleep(3000);
 //                } catch (InterruptedException e) {
 //                    e.printStackTrace();
@@ -353,7 +355,7 @@ public class SignInActivity extends AppCompatActivity implements
 
             @Override
             protected void onPostExecute(Bitmap bitmap) {
-                Log.i(TAG, "onPostExecute");
+                if (DEBUG) Log.i(TAG, "onPostExecute");
                 if (bitmap != null) {
                     saveBitmap(bitmap);
                 }
@@ -366,7 +368,7 @@ public class SignInActivity extends AppCompatActivity implements
     }
 
     private void saveBitmap(Bitmap bitmap) {
-        Log.i(TAG, "saveBitmap");
+        if (DEBUG) Log.i(TAG, "saveBitmap");
         File cache = getExternalCacheDir();
         File image = new File(cache, PHOTO_PNG);
         FileOutputStream out = null;
@@ -389,7 +391,7 @@ public class SignInActivity extends AppCompatActivity implements
 
     private void postSignInData() {
         try {
-            Log.i(TAG, "postSignInData");
+            if (DEBUG) Log.i(TAG, "postSignInData");
             JSONObject jsonUser = new JSONObject();
             jsonUser.put("userID", personId);
             jsonUser.put("email", personEmail);
@@ -410,25 +412,25 @@ public class SignInActivity extends AppCompatActivity implements
 //        if (loadPeopleResult.getStatus().isSuccess()) {
 //            PersonBuffer personBuffer = loadPeopleResult.getPersonBuffer();
 //            if (personBuffer != null && personBuffer.getCount() > 0) {
-//                Log.i(TAG, "onResult");
+//                if (DEBUG) Log.i(TAG, "onResult");
 //                Person currentUser = personBuffer.get(0);
 //                personBuffer.release();
 //
 //                if (currentUser.hasBirthday()) {
 //                    String birth = currentUser.getBirthday();
-//                    Log.i(TAG, birth);
+//                    if (DEBUG) Log.i(TAG, birth);
 //                }
 //                if (currentUser.hasDisplayName()) {
 //                    String name = currentUser.getDisplayName();
-//                    Log.i(TAG, name);
+//                    if (DEBUG) Log.i(TAG, name);
 //                }
 //                if (currentUser.hasAgeRange()) {
 //                    Person.AgeRange age = currentUser.getAgeRange();
-//                    Log.i(TAG, age.toString());
+//                    if (DEBUG) Log.i(TAG, age.toString());
 //                }
 //                if (currentUser.hasGender()) {
 //                    int gender = currentUser.getGender();
-//                    Log.i(TAG, Integer.toString(gender));
+//                    if (DEBUG) Log.i(TAG, Integer.toString(gender));
 //                }
 //            }
 //        }

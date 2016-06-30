@@ -48,13 +48,13 @@ public class RESTcURL {
                 new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
-                        Log.i(TAG, "Response " + response.toString());
+//                        Log.i(TAG, "Response " + response.toString());
                     }
                 },
                 new Response.ErrorListener() {
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                        Log.i(TAG, "Error " + error);
+//                        Log.i(TAG, "Error " + error);
                     }
                 }
         ) {
