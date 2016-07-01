@@ -49,7 +49,7 @@ public class SimpleGeofenceBuilder {
     private Long enterDate;
 
     public SimpleGeofenceBuilder(Context context, boolean delete) {
-        String str_geo_file = "geofile";
+        String str_geo_file = "geofenceBuilder";
         geoFile = new File(context.getExternalCacheDir(), str_geo_file);
         if (geoFile.exists() && delete) {
             geoFile.delete();
@@ -168,11 +168,7 @@ public class SimpleGeofenceBuilder {
         mRadius = DISTANCE_RADIUS;
         mTransitionType = TRANSITION;
         mExpirationDuration = EXPIRATION_TIME;
-        SimpleGeofence geofence = new SimpleGeofence(mId, mLatitude, mLongitude, mRadius, mExpirationDuration, mTransitionType);
-        // my insert
-        geofence.setEnterDate(enterDate);
-
-        return geofence;
+        return new SimpleGeofence(mId, mLatitude, mLongitude, mRadius, mExpirationDuration, mTransitionType);
     }
 
     // Computes the center of all positions

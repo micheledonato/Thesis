@@ -11,10 +11,15 @@ import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageButton;
 
+import com.devmicheledonato.thesis.GeofenceFile;
 import com.devmicheledonato.thesis.LocationService;
 import com.devmicheledonato.thesis.MainActivity;
 import com.devmicheledonato.thesis.R;
@@ -39,7 +44,11 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Locale;
 
 
 /**
@@ -110,14 +119,15 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
 
         Log.i(TAG, "onCreate");
 
+        setHasOptionsMenu(true);
+
         if (getArguments() != null) {
             mParam1 = getArguments().getString(ARG_PARAM1);
             mParam2 = getArguments().getString(ARG_PARAM2);
         }
 
-
         context = getActivity();
-        file = new File(context.getExternalCacheDir(), "simpleGeofencesID");
+        file = new File(context.getExternalCacheDir(), GeofenceFile.GEOFENCE_FILENAME);
 
         array = new ArrayList<>();
         simpleGeofenceStore = new SimpleGeofenceStore(context);
@@ -183,14 +193,6 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
 
         mMapView.getMapAsync(this);
 
-        Button button = (Button) root.findViewById(R.id.refresh);
-        button.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                addGeofenceMarker();
-            }
-        });
-
         return root;
     }
 
@@ -202,11 +204,29 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
 
                 MarkerOptions markerOptions = new MarkerOptions();
                 markerOptions.position(new LatLng(geofence.getLatitude(), geofence.getLongitude()));
-                markerOptions.title("G-" + id);
+                markerOptions.title(id);
 
                 mMap.addMarker(markerOptions);
             }
         }
+    }
+
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        inflater.inflate(R.menu.menu_fragment, menu);
+        super.onCreateOptionsMenu(menu, inflater);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.refreshButton:
+                addGeofenceMarker();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+
     }
 
     private void readFile() {
@@ -217,7 +237,8 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
             bufferedReader = new BufferedReader(fileReader);
             String line;
             while ((line = bufferedReader.readLine()) != null) {
-                array.add(line);
+                String[] lineSplitted = line.split(",");
+                array.add(lineSplitted[0]);
             }
         } catch (FileNotFoundException e) {
             e.printStackTrace();

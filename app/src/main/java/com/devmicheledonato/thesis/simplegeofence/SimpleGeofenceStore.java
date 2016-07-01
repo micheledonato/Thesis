@@ -3,12 +3,6 @@ package com.devmicheledonato.thesis.simplegeofence;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-
 /**
  * Storage for geofence values, implemented in SharedPreferences.
  */
@@ -20,7 +14,6 @@ public class SimpleGeofenceStore {
     public static final String KEY_RADIUS = "KEY_RADIUS";
     public static final String KEY_EXPIRATION_DURATION = "KEY_EXPIRATION_DURATION";
     public static final String KEY_TRANSITION_TYPE = "KEY_TRANSITION_TYPE";
-    public static final String KEY_ENTER_DATE = "KEY_ENTER_DATE";
 
     // The prefix for flattened geofence keys.
     public static final String KEY_PREFIX = "KEY";
@@ -35,22 +28,11 @@ public class SimpleGeofenceStore {
     // The name of the SharedPreferences.
     private static final String SHARED_PREFERENCES = "SharedPreferences";
 
-    // File
-    private File file;
-    // Writer for json file
-    private FileWriter fileWriter;
-    // Buffer for FileWriter
-    private BufferedWriter bufferedWriter;
-    // To print on file
-    private PrintWriter printWriter;
-
     /**
      * Create the SharedPreferences storage with private access only.
      */
     public SimpleGeofenceStore(Context context) {
         mPrefs = context.getSharedPreferences(SHARED_PREFERENCES, Context.MODE_PRIVATE);
-
-        file = new File(context.getExternalCacheDir(), "simpleGeofencesID");
     }
 
     /**
@@ -74,21 +56,13 @@ public class SimpleGeofenceStore {
         int transitionType = mPrefs.getInt(getGeofenceFieldKey(id, KEY_TRANSITION_TYPE),
                 INVALID_INT_VALUE);
 
-        // my insert
-        Long enterDate = mPrefs.getLong(getGeofenceFieldKey(id, KEY_ENTER_DATE), INVALID_LONG_VALUE);
-
         // If none of the values is incorrect, return the object.
         if (lat != INVALID_FLOAT_VALUE
                 && lng != INVALID_FLOAT_VALUE
                 && radius != INVALID_FLOAT_VALUE
                 && expirationDuration != INVALID_LONG_VALUE
                 && transitionType != INVALID_INT_VALUE) {
-
-            SimpleGeofence geofence = new SimpleGeofence(id, lat, lng, radius, expirationDuration, transitionType);
-            // my insert
-            geofence.setEnterDate(enterDate);
-
-            return geofence;
+            return new SimpleGeofence(id, lat, lng, radius, expirationDuration, transitionType);
         }
         // Otherwise, return null.
         return null;
@@ -111,42 +85,8 @@ public class SimpleGeofenceStore {
                 geofence.getExpirationDuration());
         prefs.putInt(getGeofenceFieldKey(id, KEY_TRANSITION_TYPE),
                 geofence.getTransitionType());
-
-        // my insert
-        prefs.putLong(getGeofenceFieldKey(id, KEY_ENTER_DATE), geofence.getEnterDate());
-
         // Commit the changes.
         prefs.commit();
-
-        writeFile(id);
-    }
-
-    public void writeFile(String line) {
-        fileWriter = null;
-        bufferedWriter = null;
-        printWriter = null;
-        try {
-            fileWriter = new FileWriter(file, true);
-            bufferedWriter = new BufferedWriter(fileWriter);
-            printWriter = new PrintWriter(bufferedWriter);
-            printWriter.println(line);
-            printWriter.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                if (bufferedWriter != null)
-                    bufferedWriter.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            try {
-                if (fileWriter != null)
-                    fileWriter.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
     }
 
     /**
@@ -159,10 +99,6 @@ public class SimpleGeofenceStore {
         prefs.remove(getGeofenceFieldKey(id, KEY_RADIUS));
         prefs.remove(getGeofenceFieldKey(id, KEY_EXPIRATION_DURATION));
         prefs.remove(getGeofenceFieldKey(id, KEY_TRANSITION_TYPE));
-
-        // my insert
-        prefs.remove(getGeofenceFieldKey(id, KEY_ENTER_DATE));
-
         prefs.commit();
     }
 

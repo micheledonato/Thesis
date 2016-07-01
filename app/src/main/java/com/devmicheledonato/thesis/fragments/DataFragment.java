@@ -1,53 +1,49 @@
 package com.devmicheledonato.thesis.fragments;
 
 import android.app.Fragment;
-import android.os.AsyncTask;
+import android.content.Context;
 import android.os.Bundle;
+import android.support.v7.widget.CardView;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.TextView;
 
-import com.devmicheledonato.thesis.LocationFile;
+import com.devmicheledonato.thesis.GeofenceFile;
 import com.devmicheledonato.thesis.R;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+import com.devmicheledonato.thesis.simplegeofence.SimpleGeofence;
+import com.devmicheledonato.thesis.simplegeofence.SimpleGeofenceStore;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
+import java.util.Locale;
 
 
-/**
- * A simple {@link Fragment} subclass.
- */
 public class DataFragment extends Fragment {
 
     private final String TAG = getClass().getSimpleName();
+    private Context context;
+    private File file;
+    private ArrayList<StructureGeofence> array;
+    private SimpleGeofenceStore simpleGeofenceStore;
+    private SimpleGeofence geofence;
 
-    private final static String error_user = "-Error: No rows for";
-    private final static String error_list = "-Error: No rows!";
-    private final static String error_generic = "-Error:";
-
-    private StringBuffer chaine;
-    private JSONObject userJSON;
-    private TextView lista;
-    private Button send;
-    private Button refresh;
-
-    LocationFile locationFile;
-
+    private RecyclerView mRecyclerView;
+    private RecyclerView.LayoutManager mLayoutManager;
+    private MyAdapter mAdapter;
 
     public DataFragment() {
         // Required empty public constructor
@@ -62,7 +58,16 @@ public class DataFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        locationFile = new LocationFile(getActivity(), "location.txt");
+        setHasOptionsMenu(true);
+
+        context = getActivity();
+        simpleGeofenceStore = new SimpleGeofenceStore(context);
+
+        file = new File(context.getExternalCacheDir(), GeofenceFile.GEOFENCE_FILENAME);
+        if (file.exists()) {
+            readFile();
+            Log.i(TAG, "Size: " + array.size());
+        }
     }
 
     @Override
@@ -71,195 +76,182 @@ public class DataFragment extends Fragment {
         // Inflate the layout for this fragment
         ViewGroup root = (ViewGroup) inflater.inflate(R.layout.fragment_data, container, false);
 
-        lista = (TextView) root.findViewById(R.id.lista);
-        send = (Button) root.findViewById(R.id.send);
-        refresh = (Button) root.findViewById(R.id.refresh);
+        mRecyclerView = (RecyclerView) root.findViewById(R.id.my_recycler_view);
 
-        send.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-//                userJSON = new JSONObject();
-//                JSONObject newPosition = new JSONObject();
-//                JSONArray positions = new JSONArray();
-//                Calendar now = (Calendar) Calendar.getInstance();
-////                GregorianCalendar now = (GregorianCalendar) GregorianCalendar.getInstance();
-//                if (user.getText().toString().trim().equalsIgnoreCase("")
-//                        || lat.getText().toString().trim().equalsIgnoreCase("")
-//                        || lat.getText().toString().trim().equalsIgnoreCase("")) {
-////                    Toast.makeText(MainActivity.this, "Fields empty", Toast.LENGTH_SHORT).show();
-//                } else {
-//                    try {
-//                        userJSON.put("userID", user.getText().toString());
-//                        userJSON.put("lastUpdate", now.getTimeInMillis());
-//
-//                        newPosition.put("lat", Double.parseDouble(lat.getText().toString()));
-//                        newPosition.put("lng", Double.parseDouble(lng.getText().toString()));
-//                        newPosition.put("date", now.getTimeInMillis());
-//                        newPosition.put("dayOfWeek", now.get(Calendar.DAY_OF_WEEK) - 1);
-//                        newPosition.put("hourOfDay", now.get(Calendar.HOUR_OF_DAY));
-////                        newRow.put("dayOfWeek", ((Calendar) now).get(Calendar.DAY_OF_WEEK));
-////                        newRow.put("hourOfDay", ((Calendar) now).get(Calendar.HOUR_OF_DAY));
-//                        positions.put(newPosition);
-//
-//                        userJSON.put("positions", positions);
-//                    } catch (JSONException e) {
-//                        e.printStackTrace();
-//                    }
-//                    new postValue().execute();
-//                }
-                userJSON = locationFile.fileToJson();
-                Log.i(TAG, userJSON.toString());
-                new postValue().execute();
-            }
-        });
-        refresh.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                new readValue().execute();
-            }
-        });
-//        new readValue().execute();
+        // use this setting to improve performance if you know that changes
+        // in content do not change the layout size of the RecyclerView
+        mRecyclerView.setHasFixedSize(true);
+
+        // use a linear layout manager
+        mLayoutManager = new LinearLayoutManager(context);
+        mRecyclerView.setLayoutManager(mLayoutManager);
+
+        // specify an adapter (see also next example)
+        mAdapter = new MyAdapter(array);
+        mRecyclerView.setAdapter(mAdapter);
 
         return root;
     }
 
-    private class readValue extends AsyncTask<String, String, String> {
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        inflater.inflate(R.menu.menu_fragment, menu);
+        super.onCreateOptionsMenu(menu, inflater);
+    }
 
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-            lista.setText("");
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.refreshButton:
+                if (file.exists()) {
+                    readFile();
+                    mAdapter.updateList(array);
+                }
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
         }
 
-        @Override
-        protected String doInBackground(String... strings) {
-            chaine = new StringBuffer("");
-            try {
-                URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.5-SNAPSHOT/getPlaces");
-                //URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.2-SNAPSHOT/get/nome_utente");
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-//                connection.setRequestProperty("User-Agent", "");
-                connection.setRequestMethod("GET");
-                connection.setDoInput(true);
-                connection.setDoOutput(false);
-//                connection.setConnectTimeout(10000);
-//                connection.setReadTimeout(10000);
-//                connection.setRequestProperty("Content-Type", "application/json");
-                connection.connect();
+    }
 
-                InputStream inputStream = connection.getInputStream();
+    private void readFile() {
+        array = new ArrayList<>();
 
-                BufferedReader rd = new BufferedReader(new InputStreamReader(inputStream));
-                String line = "";
-                while ((line = rd.readLine()) != null) {
-                    chaine.append(line);
+        FileReader fileReader = null;
+        BufferedReader bufferedReader = null;
+        try {
+            fileReader = new FileReader(file);
+            bufferedReader = new BufferedReader(fileReader);
+            String line;
+            while ((line = bufferedReader.readLine()) != null) {
+                String[] lineSplitted = line.split(",");
+                StructureGeofence structureGeofence = new StructureGeofence();
+                structureGeofence.setId(lineSplitted[0]);
+                structureGeofence.setEnter(Long.parseLong(lineSplitted[1]));
+                if (lineSplitted.length == 3) {
+                    structureGeofence.setExit(Long.parseLong(lineSplitted[2]));
                 }
-            } catch (Exception e) {
-                // writing exception to log
+                array.add(structureGeofence);
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (bufferedReader != null)
+                    bufferedReader.close();
+            } catch (IOException e) {
                 e.printStackTrace();
             }
-            Log.e("RISULTATO: ", chaine.toString());
-            return "";
-        }
-
-        @Override
-        protected void onPostExecute(String result) {
-            super.onPostExecute(result);
-
-            if (chaine.toString().contains(error_list))
-                lista.setText(chaine.toString());
-            else if (chaine.toString().contains(error_generic)) {
-                Log.e("RETURN ERROR", chaine.toString());
-                lista.setText("Error returned from server");
-            } else {
-                try {
-                    JSONArray list = new JSONArray(chaine.toString());
-                    for (int i = 0; i < list.length(); i++) {
-                        JSONObject user = list.getJSONObject(i);
-                        SimpleDateFormat format = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss Z");
-                        Calendar lastUpdate = (Calendar) Calendar.getInstance();
-                        lastUpdate.setTimeInMillis(Long.parseLong(user.getString("lastUpdate")));
-
-                        lista.append("UserID: " + user.getString("userID") +
-                                " lastUpdate: " + format.format(lastUpdate.getTime()) + "\n");
-
-                        JSONArray positions = new JSONArray(list.getJSONObject(i).getString("positions"));
-                        for (int j = 0; j < positions.length(); j++) {
-                            JSONObject position = positions.getJSONObject(j);
-
-                            lista.append("\t\tLat: " + position.getDouble("lat") + "\n" +
-                                    "\t\tLng: " + position.getDouble("lng") + "\n" +
-                                    "\t\tDate: " + position.getString("date") + "\n" +
-                                    "\t\tDay: " + position.getInt("dayOfWeek") + "\n" +
-                                    "\t\tHour: " + position.getInt("hourOfDay") + "\n");
-                        }
-                    }
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
+            try {
+                if (fileReader != null)
+                    fileReader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
 
-    private class postValue extends AsyncTask<String, String, String> {
+    public class MyAdapter extends RecyclerView.Adapter<MyAdapter.ViewHolder> {
+        private List<StructureGeofence> geoList;
 
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-        }
+        public class ViewHolder extends RecyclerView.ViewHolder {
+            public TextView geofenceID, enter, exit;
+            public CardView cardView;
 
-        @Override
-        protected String doInBackground(String... strings) {
-            HttpURLConnection connection = null;
-            try {
-                URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.5-SNAPSHOT/post");
-                connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestProperty("User-Agent", "");
-                connection.setRequestMethod("POST");
-                connection.setDoOutput(true);
-                connection.setConnectTimeout(30000);
-                connection.setReadTimeout(30000);
-                connection.setRequestProperty("Content-Type", "application/json");
-                connection.connect();
-
-                Log.e("JSON:", userJSON.toString());
-                OutputStreamWriter out = new OutputStreamWriter(connection.getOutputStream());
-                out.write(userJSON.toString());
-                out.close();
-
-//                int HttpResult = connection.getResponseCode();
-//                Log.e("Result:", "" + HttpResult);
-//                if(HttpResult == HttpURLConnection.HTTP_OK){
-//                }else{
-//                    Log.e("Insert response", connection.getResponseMessage());
-//                }
-
-                InputStream inputStream = connection.getInputStream();
-
-                BufferedReader rd = new BufferedReader(new InputStreamReader(inputStream));
-                String line = "";
-                chaine.delete(0, chaine.length());
-                while ((line = rd.readLine()) != null) {
-                    chaine.append(line);
-                }
-                Log.e("Insert response", chaine.toString());
-
-            } catch (MalformedURLException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                if (connection != null)
-                    connection.disconnect();
+            public ViewHolder(View v) {
+                super(v);
+                cardView = (CardView) v.findViewById(R.id.cv);
+                geofenceID = (TextView) v.findViewById(R.id.geofenceID);
+                enter = (TextView) v.findViewById(R.id.enter);
+                exit = (TextView) v.findViewById(R.id.exit);
             }
-            return "";
+        }
+
+        public MyAdapter(List<StructureGeofence> list) {
+            geoList = list;
+        }
+
+        public void updateList(List<StructureGeofence> list) {
+            if (geoList != null) {
+                geoList.clear();
+                geoList.addAll(list);
+            } else {
+                geoList = list;
+            }
+            notifyDataSetChanged();
         }
 
         @Override
-        protected void onPostExecute(String result) {
-            super.onPostExecute(result);
-//            Toast.makeText(MainActivity.this, chaine.toString(), Toast.LENGTH_SHORT).show();
-            new readValue().execute();
+        public MyAdapter.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            // create a new view
+            View v = LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.geofence_list_view, parent, false);
+
+            return new ViewHolder(v);
+        }
+
+
+        // Replace the contents of a view (invoked by the layout manager)
+        @Override
+        public void onBindViewHolder(ViewHolder holder, int position) {
+
+            StructureGeofence sgeofence = geoList.get(position);
+
+            holder.geofenceID.setText(sgeofence.getId());
+
+            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
+            Calendar calendar = Calendar.getInstance();
+
+            calendar.setTimeInMillis(sgeofence.getEnter());
+            String enter = simpleDateFormat.format(calendar.getTime());
+
+            String exit = "NA";
+            if (sgeofence.getExit() != null) {
+                calendar.setTimeInMillis(sgeofence.getExit());
+                exit = simpleDateFormat.format(calendar.getTime());
+            }
+
+            holder.enter.setText("Date enter: " + enter);
+            holder.exit.setText("Date exit: " + exit);
+        }
+
+        @Override
+        public int getItemCount() {
+            return geoList.size();
+        }
+    }
+
+    private class StructureGeofence {
+        String id;
+        Long enter, exit;
+
+        public StructureGeofence() {
+        }
+
+        public void setId(String value) {
+            this.id = value;
+        }
+
+        public void setEnter(Long value) {
+            this.enter = value;
+        }
+
+        public void setExit(Long value) {
+            this.exit = value;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public Long getEnter() {
+            return enter;
+        }
+
+        public Long getExit() {
+            return exit;
         }
     }
 }

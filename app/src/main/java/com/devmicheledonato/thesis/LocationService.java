@@ -44,7 +44,6 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.Locale;
 
 public class LocationService extends Service implements
@@ -100,6 +99,10 @@ public class LocationService extends Service implements
     private static final String STR_LOCATION_FILE = "STR_LOCATION_FILE";
     private static final String LOCATION_UPDATES = "LOCATION_UPDATES";
 
+    private static final String KEY_DATA_ENTER = "KEY_DATA_ENTER";
+
+    public static final long INVALID_LONG_VALUE = -999l;
+
     // Json file
     File file;
     // Writer for json file
@@ -138,6 +141,8 @@ public class LocationService extends Service implements
     private LocationFile locationFile;
     private String str_location_file;
 
+    private GeofenceFile geofenceFile;
+
     private SimpleGeofenceBuilder simpleGeofenceBuilder;
     private SimpleGeofence simpleGeofence;
     private SimpleGeofenceStore simpleGeofenceStore;
@@ -158,6 +163,7 @@ public class LocationService extends Service implements
     private boolean boolStartLocationUpdates;
 
     private boolean locationUpdates;
+
 
     public LocationService() {
         Log.i(TAG, "MyService");
@@ -207,6 +213,8 @@ public class LocationService extends Service implements
         mCurrentLocation = null;
         simpleGeofenceBuilder = new SimpleGeofenceBuilder(this, false);
         simpleGeofenceStore = new SimpleGeofenceStore(this);
+
+        geofenceFile = new GeofenceFile(this);
 
         sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
         restoreStateFromSharedPref();
@@ -614,37 +622,57 @@ public class LocationService extends Service implements
         // delete file
         locationFile.deleteFile();
 
-        SimpleGeofence sgfence = simpleGeofenceStore.getGeofence(id);
-        // if the geofence has not dateEnter, I set now as dateEnter
-        if (sgfence.getEnterDate() == SimpleGeofenceStore.INVALID_LONG_VALUE) {
-            Calendar calendar = Calendar.getInstance();
-            Long dateEnter = calendar.getTimeInMillis();
-            sgfence.setEnterDate(dateEnter);
-            simpleGeofenceStore.setGeofence(id, sgfence);
-        }
+//        SimpleGeofence sgfence = simpleGeofenceStore.getGeofence(id);
+//        // if the geofence has not dateEnter, I set now as dateEnter
+//        if (sgfence.getEnterDate() == SimpleGeofenceStore.INVALID_LONG_VALUE) {
+//            Calendar calendar = Calendar.getInstance();
+//            Long dateEnter = calendar.getTimeInMillis();
+//            sgfence.setEnterDate(dateEnter);
+//            simpleGeofenceStore.setGeofence(id, sgfence);
+//        }
+        // when I enter the geofence, I get date of enter and save it with geofenceID on file
+        Calendar calendar = Calendar.getInstance();
+        Long dateEnter = calendar.getTimeInMillis();
+
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putLong(KEY_DATA_ENTER, dateEnter);
+        editor.apply();
+
+        geofenceFile.writeFile(id + "," + Long.toString(dateEnter), true); // true cause transition enter
     }
 
     private void geofenceTransitionExit(String id) {
         Log.i(TAG, "EXIT G-" + id);
 
+//        if(!boolEnter){
+//            return;
+//        }
+
         // when I leave the geofence, I get date of exit and send all geofence's information to server
         Calendar calendar = Calendar.getInstance();
         Long dateExit = calendar.getTimeInMillis();
-
         SimpleGeofence sgfence = simpleGeofenceStore.getGeofence(id);
+        geofenceFile.writeFile("," + Long.toString(dateExit), false); // false cause transition exit
+
+        Long dateEnter = sharedPref.getLong(KEY_DATA_ENTER, INVALID_LONG_VALUE);
+        if (dateEnter == INVALID_LONG_VALUE) {
+            // error invalid date of enter into geofence
+            return;
+        }
+
         try {
             Log.i(TAG, "postPlace");
             JSONObject jsonPlace = new JSONObject();
             jsonPlace.put("userID", personID);
             jsonPlace.put("lat", sgfence.getLatitude());
             jsonPlace.put("lng", sgfence.getLongitude());
-            jsonPlace.put("dateEnter", sgfence.getEnterDate());
+            jsonPlace.put("dateEnter", dateEnter);
             jsonPlace.put("dateExit", dateExit);
             mRESTcURL.postPlace(jsonPlace);
 
-            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
-            String dateENTERString = simpleDateFormat.format(sgfence.getEnterDate());
-            String dateEXITString = simpleDateFormat.format(dateExit);
+//            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
+//            String dateENTERString = simpleDateFormat.format(sgfence.getEnterDate());
+//            String dateEXITString = simpleDateFormat.format(dateExit);
 
 //            Log.i(TAG, personID + " "
 //                    + sgfence.getLatitude() + " "
@@ -656,8 +684,8 @@ public class LocationService extends Service implements
             e.printStackTrace();
         }
 
-        sgfence.setEnterDate(SimpleGeofenceStore.INVALID_LONG_VALUE);
-        simpleGeofenceStore.setGeofence(id, sgfence);
+//        sgfence.setEnterDate(SimpleGeofenceStore.INVALID_LONG_VALUE);
+//        simpleGeofenceStore.setGeofence(id, sgfence);
 
         simpleGeofenceBuilder.deleteFile();
 
