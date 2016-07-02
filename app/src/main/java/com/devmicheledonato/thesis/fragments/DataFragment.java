@@ -66,7 +66,6 @@ public class DataFragment extends Fragment {
         file = new File(context.getExternalCacheDir(), GeofenceFile.GEOFENCE_FILENAME);
         if (file.exists()) {
             readFile();
-            Log.i(TAG, "Size: " + array.size());
         }
     }
 
@@ -86,7 +85,7 @@ public class DataFragment extends Fragment {
         mLayoutManager = new LinearLayoutManager(context);
         mRecyclerView.setLayoutManager(mLayoutManager);
 
-        // specify an adapter (see also next example)
+        // specify an adapter
         mAdapter = new MyAdapter(array);
         mRecyclerView.setAdapter(mAdapter);
 
@@ -219,7 +218,11 @@ public class DataFragment extends Fragment {
 
         @Override
         public int getItemCount() {
-            return geoList.size();
+            if (geoList != null) {
+                return geoList.size();
+            } else {
+                return 0;
+            }
         }
     }
 

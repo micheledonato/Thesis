@@ -25,6 +25,8 @@ public class LocationFile {
 
     private final String TAG = this.getClass().getSimpleName();
 
+    public static final String LOCATION_FILENAME = "LocationFile";
+
     // File
     private File file;
     // Writer for json file
@@ -34,16 +36,12 @@ public class LocationFile {
     // To print on file
     private PrintWriter printWriter;
 
-    //    FileChannel channel;
-//    FileLock lock;
     private String personID;
     private static final String ERROR_ID = "error_id";
 
-    public LocationFile(Context context, String fileName) {
+    public LocationFile(Context context) {
         Log.i(TAG, "LocationFile");
-        file = new File(context.getExternalCacheDir(), fileName);
-//        channel = null;
-//        lock = null;
+        file = new File(context.getExternalCacheDir(), LOCATION_FILENAME);
 
         SharedPreferences sharedPref = PreferenceManager.getDefaultSharedPreferences(context);
         personID = sharedPref.getString(SignInActivity.PERSON_ID, ERROR_ID);

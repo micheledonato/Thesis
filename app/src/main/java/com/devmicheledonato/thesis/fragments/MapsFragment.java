@@ -165,7 +165,7 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
             Location loc;
             if ((loc = LocationService.getLocation()) != null) {
                 CameraPosition cameraPosition = new CameraPosition.Builder()
-                        .target(new LatLng(loc.getLatitude(), loc.getLongitude())).zoom(13).build();
+                        .target(new LatLng(loc.getLatitude(), loc.getLongitude())).zoom(16).build();
                 mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
             }
         }

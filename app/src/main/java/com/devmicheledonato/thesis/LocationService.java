@@ -139,8 +139,6 @@ public class LocationService extends Service implements
     private GeofencingRequest mGeofencingRequest;
 
     private LocationFile locationFile;
-    private String str_location_file;
-
     private GeofenceFile geofenceFile;
 
     private SimpleGeofenceBuilder simpleGeofenceBuilder;
@@ -161,9 +159,9 @@ public class LocationService extends Service implements
     private boolean boolCheckLocationSettings;
     private boolean boolRemoveRequest;
     private boolean boolStartLocationUpdates;
+    private boolean boolStopLocationUpdates;
 
     private boolean locationUpdates;
-
 
     public LocationService() {
         Log.i(TAG, "MyService");
@@ -185,10 +183,6 @@ public class LocationService extends Service implements
         editor.putBoolean(DISPLACEMENT, displacement);
         editor.putBoolean(COUNTDOWN, countDownFinished);
         editor.putBoolean(LOCATION_UPDATES, locationUpdates);
-
-        // save the name of location file (timeLocation)
-        editor.putString(STR_LOCATION_FILE, str_location_file);
-
         editor.apply();
     }
 
@@ -197,12 +191,6 @@ public class LocationService extends Service implements
         displacement = sharedPref.getBoolean(DISPLACEMENT, false);
         countDownFinished = sharedPref.getBoolean(COUNTDOWN, false);
         locationUpdates = sharedPref.getBoolean(LOCATION_UPDATES, false);
-
-        // restore the name of location file
-        str_location_file = sharedPref.getString(STR_LOCATION_FILE, null);
-        if (str_location_file != null) {
-            locationFile = new LocationFile(this, str_location_file);
-        }
     }
 
     @Override
@@ -215,6 +203,7 @@ public class LocationService extends Service implements
         simpleGeofenceStore = new SimpleGeofenceStore(this);
 
         geofenceFile = new GeofenceFile(this);
+        locationFile = new LocationFile(this);
 
         sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
         restoreStateFromSharedPref();
@@ -439,11 +428,15 @@ public class LocationService extends Service implements
                     mGoogleApiClient,
                     getActivityDetectionPendingIntent()
             );
+
+            locationUpdates = false;
+
             // VEDI SOPRA
             //.setResultCallback(this);
+        } else {
+            boolStopLocationUpdates = true;
+            mGoogleApiClient.connect();
         }
-
-        locationUpdates = false;
     }
 
     @Override
@@ -475,6 +468,11 @@ public class LocationService extends Service implements
         if (boolStartLocationUpdates) {
             startLocationUpdates();
             boolStartLocationUpdates = false;
+        }
+
+        if (boolStopLocationUpdates) {
+            stopLocationUpdates();
+            boolStopLocationUpdates = false;
         }
     }
 
@@ -514,9 +512,6 @@ public class LocationService extends Service implements
 
         if (!startGeofencing) {
             Log.i(TAG, "startGeofencing");
-            // Create new file with name dateString
-            locationFile = new LocationFile(this, Long.toString(timeLocation));
-            str_location_file = Long.toString(timeLocation);
             // Start the geofencing
             startGeofencing = true;
             // Set countdown
