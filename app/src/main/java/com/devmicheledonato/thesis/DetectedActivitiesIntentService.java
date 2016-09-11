@@ -13,6 +13,8 @@ public class DetectedActivitiesIntentService extends IntentService {
     public static final String DETECTED_ACTIVITY_ACTION = "DETECTED_ACTIVITY_ACTION";
     public static final String DETECTED_ACTIVITY_EXTRA = "DETECTED_ACTIVITY_EXTRA";
 
+    private ThesisApplication app;
+
     /**
      * This constructor is required, and calls the super IntentService(String)
      * constructor with the name for a worker thread.
@@ -20,15 +22,23 @@ public class DetectedActivitiesIntentService extends IntentService {
     public DetectedActivitiesIntentService() {
         // Use the TAG to name the worker thread.
         super(TAG);
+        app = ThesisApplication.getInstance();
     }
 
     /**
      * Handles incoming intents.
+     *
      * @param intent The Intent is provided (inside a PendingIntent) when requestActivityUpdates()
      *               is called.
      */
     @Override
     protected void onHandleIntent(Intent intent) {
+
+        // if the preference updates on settings is off then return
+        if (!app.isKeyPrefUpdatesOn() || app.isKeyEnterTrue()) {
+            return;
+        }
+
         Log.i(TAG, "onHandleIntent");
         ActivityRecognitionResult result = ActivityRecognitionResult.extractResult(intent);
 //        Intent localIntent = new Intent(LocationService.DETECTED_ACTIVITY_ACTION);
@@ -58,7 +68,6 @@ public class DetectedActivitiesIntentService extends IntentService {
         // Broadcast the detected activity.
 //        localIntent.putExtra(LocationService.DETECTED_ACTIVITY_EXTRA, detectedActivity);
 //        LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
-
 
 
         Intent i = new Intent(this, LocationService.class);

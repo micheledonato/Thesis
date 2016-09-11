@@ -16,12 +16,21 @@ public class GeofenceTransitionsIntentService extends IntentService {
     public static final String GEOFENCE_TRANSITION_ENTER_EXTRA = "GEOFENCE_TRANSITION_ENTER_EXTRA";
     public static final String GEOFENCE_TRANSITION_EXIT_EXTRA = "GEOFENCE_TRANSITION_EXIT_EXTRA";
 
+    private ThesisApplication app;
+
     public GeofenceTransitionsIntentService() {
         super("GeofenceTransitionsIntentService");
+        app = ThesisApplication.getInstance();
     }
 
     @Override
     protected void onHandleIntent(Intent intent) {
+
+        // if the preference updates on settings is off then return
+        if (!app.isKeyPrefUpdatesOn()) {
+            return;
+        }
+
         GeofencingEvent geofencingEvent = GeofencingEvent.fromIntent(intent);
         if (geofencingEvent.hasError()) {
             int errorCode = geofencingEvent.getErrorCode();
@@ -41,11 +50,11 @@ public class GeofenceTransitionsIntentService extends IntentService {
             Log.i(TAG, "ENTER");
             i.putExtra(GEOFENCE_TRANSITION_ENTER_EXTRA, geofence.getRequestId());
             startService(i);
-        }else if(geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT){
+        } else if (geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
             Log.i(TAG, "EXIT");
             i.putExtra(GEOFENCE_TRANSITION_EXIT_EXTRA, geofence.getRequestId());
             startService(i);
-        }else{
+        } else {
             // Log the error.
             Log.e(TAG, "Invalid type of Transition: " + geofenceTransition);
         }

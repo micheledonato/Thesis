@@ -24,8 +24,8 @@ import java.util.UUID;
 
 public class SimpleGeofenceBuilder {
 
-    public static final float DISTANCE_RADIUS = 50;
-    private static final long EXPIRATION_TIME = 12 * 60 * 60 * 1000;
+    public static final float DISTANCE_RADIUS = 70; // meters
+    private static final long EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
     private static final int TRANSITION = Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_EXIT;
 
     // File

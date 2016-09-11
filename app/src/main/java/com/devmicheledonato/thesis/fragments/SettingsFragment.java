@@ -45,11 +45,12 @@ public class SettingsFragment extends PreferenceFragment {
         sharedPref = PreferenceManager.getDefaultSharedPreferences(getActivity());
         prefUpdates = (SwitchPreference) findPreference(MainActivity.KEY_PREF_UPDATES);
         app = ThesisApplication.getInstance();
-        if(app.isMyServiceRunning(LocationService.class)){
-            prefUpdates.setChecked(true);
-        }else{
-            prefUpdates.setChecked(false);
-        }
+
+//        if(app.isMyServiceRunning(LocationService.class)){
+//            prefUpdates.setChecked(true);
+//        }else{
+//            prefUpdates.setChecked(false);
+//        }
 
         findPreference(MainActivity.KEY_PREF_LOGOUT).
                 setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {

@@ -213,6 +213,9 @@ public class SignInActivity extends AppCompatActivity implements
                     public void onResult(Status status) {
                         if (status.isSuccess()) {
                             if (DEBUG) Log.i(TAG, "REVOKE");
+                            SharedPreferences.Editor editor = sharedPref.edit();
+                            editor.clear();
+                            editor.apply();
                             clearApplicationData();
                         }
                     }
@@ -407,6 +410,7 @@ public class SignInActivity extends AppCompatActivity implements
         finish();
     }
 
+    // for PLUS.API
 //    @Override
 //    public void onResult(@NonNull People.LoadPeopleResult loadPeopleResult) {
 //        if (loadPeopleResult.getStatus().isSuccess()) {
@@ -433,64 +437,6 @@ public class SignInActivity extends AppCompatActivity implements
 //                    if (DEBUG) Log.i(TAG, Integer.toString(gender));
 //                }
 //            }
-//        }
-//    }
-
-//    private class postValue extends AsyncTask<Void, Void, Void> {
-//
-//        @Override
-//        protected Void doInBackground(Void... params) {
-//            HttpURLConnection connection = null;
-//            try {
-//                URL url = new URL("http://31.14.140.186:8080/mobilita-0.0.5-SNAPSHOT/postUser");
-//                connection = (HttpURLConnection) url.openConnection();
-//                connection.setRequestProperty("User-Agent", "");
-//                connection.setRequestMethod("POST");
-//                connection.setDoOutput(true);
-//                connection.setConnectTimeout(30000);
-//                connection.setReadTimeout(30000);
-//                connection.setRequestProperty("Content-Type", "application/json");
-//                connection.connect();
-//
-//                JSONObject jsonUser = new JSONObject();
-//                jsonUser.put("userID", personId);
-//                jsonUser.put("email", personEmail);
-//                jsonUser.put("name", personName);
-//
-//                Log.e("JSON:", jsonUser.toString());
-//                OutputStreamWriter out = new OutputStreamWriter(connection.getOutputStream());
-//                out.write(jsonUser.toString());
-//                out.close();
-//
-////                int HttpResult = connection.getResponseCode();
-////                Log.e("Result:", "" + HttpResult);
-////                if(HttpResult == HttpURLConnection.HTTP_OK){
-////                }else{
-////                    Log.e("Insert response", connection.getResponseMessage());
-////                }
-//
-//                InputStream inputStream = connection.getInputStream();
-//
-//                BufferedReader rd = new BufferedReader(new InputStreamReader(inputStream));
-//                String line = "";
-//                chaine = new StringBuffer("");
-//                chaine.delete(0, chaine.length());
-//                while ((line = rd.readLine()) != null) {
-//                    chaine.append(line);
-//                }
-//                Log.e("Insert response", chaine.toString());
-//
-//            } catch (MalformedURLException e) {
-//                e.printStackTrace();
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            } catch (JSONException e) {
-//                e.printStackTrace();
-//            } finally {
-//                if (connection != null)
-//                    connection.disconnect();
-//            }
-//            return null;
 //        }
 //    }
 }

@@ -4,6 +4,8 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.Fragment;
 import android.app.FragmentManager;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -15,6 +17,10 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
+import android.location.GpsStatus;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
@@ -43,9 +49,6 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.LocationRequest;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.io.File;
 
 public class MainActivity extends AppCompatActivity implements
@@ -53,7 +56,7 @@ public class MainActivity extends AppCompatActivity implements
         NavigationView.OnNavigationItemSelectedListener {
 
     private final String TAG = this.getClass().getSimpleName();
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     private static MainActivity instance;
     private Intent accuracyIntent;
@@ -108,6 +111,8 @@ public class MainActivity extends AppCompatActivity implements
     private SharedPreferences sharedPref;
     FragmentManager fragmentManager;
     private ThesisApplication app;
+
+    private AliveAlarm aliveAlarm;
 
     public static MainActivity getInstance() {
         if (DEBUG) Log.i("MainActivity", "getInstance");
@@ -164,6 +169,7 @@ public class MainActivity extends AppCompatActivity implements
 
         login();
 
+        aliveAlarm = new AliveAlarm();
     }
 
     private void login() {
@@ -204,10 +210,10 @@ public class MainActivity extends AppCompatActivity implements
 //            LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
 //        }
 
-        if (app.isMyServiceRunning(LocationService.class)) {
-            if (DEBUG) Log.i(TAG, "onResume - LocationService is running");
-            startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_HIGH_ACCURACY));
-        }
+//        if (app.isMyServiceRunning(LocationService.class)) {
+//            if (DEBUG) Log.i(TAG, "onResume - LocationService is running");
+//            startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_HIGH_ACCURACY));
+//        }
         PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(this);
     }
 
@@ -223,9 +229,9 @@ public class MainActivity extends AppCompatActivity implements
 //            LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
 //        }
 
-        if (app.isMyServiceRunning(LocationService.class)) {
-            startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY));
-        }
+//        if (app.isMyServiceRunning(LocationService.class)) {
+//            startService(getAccuracyLocationIntent(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY));
+//        }
         PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(this);
     }
 
@@ -469,8 +475,11 @@ public class MainActivity extends AppCompatActivity implements
 
     // Start the LocationService
     public void startLocationService() {
-        startService(getStartLocationIntent());
-        mServiceRunning = true;
+        // if there has been a transition_enter I don't start the service
+        if (!sharedPref.getBoolean(LocationService.KEY_ENTER, false)) {
+            startService(getStartLocationIntent());
+            mServiceRunning = true;
+        }
     }
 
     // Button handler of Stop Updates
@@ -600,12 +609,38 @@ public class MainActivity extends AppCompatActivity implements
             if (on) {
                 if (DEBUG) Log.i(TAG, "ON");
                 startUpdates();
+                enabledStartedReceiver();
+                aliveAlarm.setAlarm(this);
             }
             if (!on) {
                 if (DEBUG) Log.i(TAG, "OFF");
                 stopUpdates();
+                disabledStartedReceiver();
+                aliveAlarm.cancelAlarm(this);
             }
         }
+    }
+
+//    In the manifest, the boot receiver is set to android:enabled="false".
+//    This means that the receiver will not be called unless the application explicitly enables it.
+//    This prevents the boot receiver from being called unnecessarily.
+//    I enable receiver when the user set on preference_updates
+    private void enabledStartedReceiver(){
+        ComponentName receiver = new ComponentName(this, ServiceStartedReceiver.class);
+        PackageManager pm = getPackageManager();
+
+        pm.setComponentEnabledSetting(receiver,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP);
+    }
+
+    private void disabledStartedReceiver(){
+        ComponentName receiver = new ComponentName(this, ServiceStartedReceiver.class);
+        PackageManager pm = getPackageManager();
+
+        pm.setComponentEnabledSetting(receiver,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP);
     }
 
     private boolean checkPlayServices() {

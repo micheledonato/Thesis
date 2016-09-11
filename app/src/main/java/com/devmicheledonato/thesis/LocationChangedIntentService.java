@@ -13,16 +13,26 @@ public class LocationChangedIntentService extends IntentService {
     public static final String LOCATION_CHANGE_ACTION = "LOCATION_CHANGE_ACTION";
     public static final String LOCATION_CHANGE_EXTRA = "LOCATION_CHANGE_EXTRA";
 
+    private ThesisApplication app;
+
     public LocationChangedIntentService() {
         super(TAG);
+        app = ThesisApplication.getInstance();
     }
 
     @Override
     protected void onHandleIntent(Intent intent) {
+
+        // if the preference updates on settings is off then return
+        if (!app.isKeyPrefUpdatesOn() || app.isKeyEnterTrue()) {
+            return;
+        }
+
         if (intent != null && LocationResult.hasResult(intent)) {
             Log.d(TAG, "LocationResult");
             LocationResult result = LocationResult.extractResult(intent);
             Location location = result.getLastLocation();
+
             Intent i = new Intent(this, LocationService.class);
             i.setAction(LOCATION_CHANGE_ACTION);
             i.putExtra(LOCATION_CHANGE_EXTRA, location);

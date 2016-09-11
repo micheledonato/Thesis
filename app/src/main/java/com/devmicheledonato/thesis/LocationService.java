@@ -7,7 +7,9 @@ import android.content.Intent;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.location.GpsStatus;
 import android.location.Location;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.IBinder;
@@ -45,11 +47,13 @@ import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
+import java.util.UUID;
 
 public class LocationService extends Service implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        ResultCallback<LocationSettingsResult> {
+        ResultCallback<LocationSettingsResult>,
+        GpsStatus.NmeaListener {
 
     // TAG for debug
     private final String TAG = this.getClass().getSimpleName();
@@ -62,7 +66,7 @@ public class LocationService extends Service implements
     private static long seconds = 1000;
     private static long minutes = 60 * seconds;
 
-    private static final float DISTANCE_RADIUS = 50; // meters
+    private static final float DISTANCE_RADIUS = 100; // meters
 
     /**
      * The desired interval for location updates. Inexact. Updates may be more or less frequent.
@@ -95,11 +99,13 @@ public class LocationService extends Service implements
 
     private static final String START_GEOFENCING = "START_GEOFENCING";
     private static final String DISPLACEMENT = "DISPLACEMENT";
+    private static final String DISP_ID = "DISP_ID";
     private static final String COUNTDOWN = "COUNTDOWN";
     private static final String STR_LOCATION_FILE = "STR_LOCATION_FILE";
     private static final String LOCATION_UPDATES = "LOCATION_UPDATES";
 
     private static final String KEY_DATA_ENTER = "KEY_DATA_ENTER";
+    public static final String KEY_ENTER = "KEY_ENTER";
 
     public static final long INVALID_LONG_VALUE = -999l;
 
@@ -133,6 +139,11 @@ public class LocationService extends Service implements
 
     // Represents a geographical location.
     protected static Location mCurrentLocation;
+    private long timeLocation;
+    private boolean nmeaRead;
+    private String rmc;
+
+    private int detectedActivityType;
 
     // Stores the PendingIntent used to request geofence monitoring.
     private PendingIntent mGeofenceRequestIntent;
@@ -140,6 +151,7 @@ public class LocationService extends Service implements
 
     private LocationFile locationFile;
     private GeofenceFile geofenceFile;
+//    private NmeaFile nmeaFile;
 
     private SimpleGeofenceBuilder simpleGeofenceBuilder;
     private SimpleGeofence simpleGeofence;
@@ -162,6 +174,8 @@ public class LocationService extends Service implements
     private boolean boolStopLocationUpdates;
 
     private boolean locationUpdates;
+
+    private LocationManager lm;
 
     public LocationService() {
         Log.i(TAG, "MyService");
@@ -191,6 +205,7 @@ public class LocationService extends Service implements
         displacement = sharedPref.getBoolean(DISPLACEMENT, false);
         countDownFinished = sharedPref.getBoolean(COUNTDOWN, false);
         locationUpdates = sharedPref.getBoolean(LOCATION_UPDATES, false);
+        personID = sharedPref.getString(SignInActivity.PERSON_ID, ERROR_ID);
     }
 
     @Override
@@ -198,32 +213,26 @@ public class LocationService extends Service implements
         Log.i(TAG, "onCreate");
         super.onCreate();
 
+        nmeaRead = false;
+
         mCurrentLocation = null;
         simpleGeofenceBuilder = new SimpleGeofenceBuilder(this, false);
         simpleGeofenceStore = new SimpleGeofenceStore(this);
 
         geofenceFile = new GeofenceFile(this);
         locationFile = new LocationFile(this);
+//        nmeaFile = new NmeaFile(this);
 
         sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
         restoreStateFromSharedPref();
 
         mRESTcURL = new RESTcURL();
 
-        personID = sharedPref.getString(SignInActivity.PERSON_ID, ERROR_ID);
-
-        // Get a receiver for broadcasts from ActivityDetectionIntentService.
-//        mBroadcastReceiver = new UpdatesBroadcastReceiver();
+        lm = (LocationManager) getSystemService(LOCATION_SERVICE);
 
         buildGoogleApiClient();
         createLocationRequest();
         buildLocationSettingsRequest();
-
-//        HandlerThread thread = new HandlerThread("ServiceStartArguments",
-//                Process.THREAD_PRIORITY_BACKGROUND);
-//        thread.start();
-//        mServiceLooper = thread.getLooper();
-//        mServiceHandler = new ServiceHandler(mServiceLooper);
     }
 
 
@@ -310,7 +319,6 @@ public class LocationService extends Service implements
 
     @Override
     public void onDestroy() {
-        Log.i(TAG, "onDestroy");
         super.onDestroy();
 
         if (mGoogleApiClient.isConnected()) {
@@ -319,6 +327,8 @@ public class LocationService extends Service implements
         }
 
 //        stopForeground();
+
+        Log.i(TAG, "onDestroy");
     }
 
     protected synchronized void buildGoogleApiClient() {
@@ -392,6 +402,13 @@ public class LocationService extends Service implements
 
     protected void startLocationUpdates() {
         Log.i(TAG, "startLocationUpdates");
+
+        try {
+            lm.addNmeaListener(this);
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        }
+
 //        try {
 //            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
 //
@@ -418,6 +435,9 @@ public class LocationService extends Service implements
 
     protected void stopLocationUpdates() {
         Log.i(TAG, "stopLocationUpdates");
+
+        lm.removeNmeaListener(this);
+
         if (mGoogleApiClient.isConnected()) {
             // The service doesn't update the location anymore
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, getLocationChangePendingIntent());
@@ -493,6 +513,7 @@ public class LocationService extends Service implements
 
     private void locationChanged(Location location) {
         Log.i(TAG, "locationChanged");
+
         countDownFinished = false;
         // if the countdown is over, I do nothing
         // this is for prevent if a location update should come after the end of the countdown
@@ -502,18 +523,40 @@ public class LocationService extends Service implements
             return;
         }
 
+        // if arrive a location before 5 seconds, it's discarded
+        // because app fails to take NMEA data
+        if (mCurrentLocation != null) {
+            if ((location.getTime() - mCurrentLocation.getTime()) < (5 * seconds)) {
+                Log.d(TAG, "min 5 seconds");
+                return;
+            }
+        }
+
+        nmeaRead = true;
+        int userActivity = detectedActivityType;
         mCurrentLocation = location;
+
 //        Calendar calendar = Calendar.getInstance();
 //        Date date = calendar.getTime();
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
-        Long timeLocation = mCurrentLocation.getTime();
+        timeLocation = location.getTime();
         String dateString = simpleDateFormat.format(timeLocation);
-        Log.d(TAG, "Location " + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude() + " Time " + dateString);
+
+        String[] str_plit;
+        String tempNMEA = null;
+        if (rmc != null) {
+            str_plit = rmc.split(",");
+            tempNMEA = str_plit[3];
+        }
+
+        Log.d(TAG, "Location " + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude()
+                + " Time " + timeLocation + " NMEA " + tempNMEA + " UserActivity " + userActivity);
 
         if (!startGeofencing) {
             Log.i(TAG, "startGeofencing");
             // Start the geofencing
             startGeofencing = true;
+            displacement = false;
             // Set countdown
             setCountdown();
             // Save initial point
@@ -523,7 +566,7 @@ public class LocationService extends Service implements
         } else {
             float distance = simpleGeofenceBuilder.getEnterPoint().distanceTo(mCurrentLocation);
             Log.i(TAG, "Distance: " + distance);
-            if (distance > DISTANCE_RADIUS) {
+            if (distance > SimpleGeofenceBuilder.DISTANCE_RADIUS) { // prima era solo DISTANCE_RADIUS = 100
                 Log.i(TAG, "Distance greater");
                 // Means there are displacement locations
                 displacement = true;
@@ -537,8 +580,13 @@ public class LocationService extends Service implements
                 simpleGeofenceBuilder.addLocation(mCurrentLocation);
             }
         }
+
         // Save location into file
-        locationFile.writeFile(mCurrentLocation.getTime() + "," + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude());
+        locationFile.writeFile(mCurrentLocation.getTime() + ";" + mCurrentLocation.getLatitude()
+                + ";" + mCurrentLocation.getLongitude() + ";" + rmc + ";" + userActivity);
+
+        rmc = null;
+        nmeaRead = false;
     }
 
     private void setCountdown() {
@@ -547,7 +595,7 @@ public class LocationService extends Service implements
             Log.i(TAG, "Timer cancelled");
             timer.cancel();
         }
-        timer = new CountDownTimer(1 * minutes, 1 * minutes) {
+        timer = new CountDownTimer(6 * minutes, 6 * minutes) { // REMEMBER
             @Override
             public void onTick(long millisUntilFinished) {
                 Log.i(TAG, Long.toString(millisUntilFinished));
@@ -560,8 +608,8 @@ public class LocationService extends Service implements
                 stopLocationUpdates();
                 createRequestGeofence();
 
-                countDownFinished = true;
-                saveStateInSharedPref();
+//                countDownFinished = true;
+//                saveStateInSharedPref();
             }
         };
         timer.start();
@@ -595,27 +643,43 @@ public class LocationService extends Service implements
         }
     }
 
+    private void sendDisplacement() {
+
+        String dispID = null;
+
+        // if there are displacement locations, I send data to server
+        if (displacement) {  // REMEMBER
+
+            dispID = UUID.randomUUID().toString();
+
+            Log.i(TAG, "There is displacement locations");
+            mRESTcURL.postDisplacement(locationFile.fileToJson(dispID));
+        }
+
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putString(DISP_ID, dispID);
+        editor.apply();
+
+        displacement = false;
+        // delete file
+        locationFile.deleteFile();
+    }
+
     private void geofenceTransitionEnter(String id) {
-        Log.i(TAG, "ENTER G-" + id);
+        Log.i(TAG, "ENTER: " + id);
 
         // stop previous countdown
         if (timer != null) {
             Log.i(TAG, "Timer cancelled");
             timer.cancel();
         }
+        // I can enter after gf creation or just after transitionEnter because gf already exist
         // it's possible to restart a new countdown
         countDownFinished = true;
         // stop location updates
         stopLocationUpdates();
 
-        // if there are displacement locations, I send data to server
-        if (displacement) {
-            Log.i(TAG, "There is displacement locations");
-            mRESTcURL.postDisplacement(locationFile.fileToJson());
-            displacement = false;
-        }
-        // delete file
-        locationFile.deleteFile();
+        sendDisplacement();
 
 //        SimpleGeofence sgfence = simpleGeofenceStore.getGeofence(id);
 //        // if the geofence has not dateEnter, I set now as dateEnter
@@ -630,30 +694,46 @@ public class LocationService extends Service implements
         Long dateEnter = calendar.getTimeInMillis();
 
         SharedPreferences.Editor editor = sharedPref.edit();
+        // save the date of entry
         editor.putLong(KEY_DATA_ENTER, dateEnter);
+        // means that there has been a transition_enter
+        editor.putBoolean(KEY_ENTER, true);
         editor.apply();
 
-        geofenceFile.writeFile(id + "," + Long.toString(dateEnter), true); // true cause transition enter
+        geofenceFile.writeFile(id + "," + Long.toString(dateEnter), true); // true because transition enter
+
+        // save the state on sharedPreferences
+        saveStateInSharedPref();
+        // stop the service and therefore stop location updates
+        stopSelf();
     }
 
     private void geofenceTransitionExit(String id) {
-        Log.i(TAG, "EXIT G-" + id);
+        Log.i(TAG, "EXIT: " + id);
 
-//        if(!boolEnter){
-//            return;
-//        }
+        // if there has not been a transition_enter return
+        if (!sharedPref.getBoolean(KEY_ENTER, false)) {
+            Log.i(TAG, "NO ENTER TRANSITION");
+            return;
+        }
+        // reset the key_enter because there is a transition_exit
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putBoolean(KEY_ENTER, false);
+        editor.apply();
 
         // when I leave the geofence, I get date of exit and send all geofence's information to server
         Calendar calendar = Calendar.getInstance();
         Long dateExit = calendar.getTimeInMillis();
         SimpleGeofence sgfence = simpleGeofenceStore.getGeofence(id);
-        geofenceFile.writeFile("," + Long.toString(dateExit), false); // false cause transition exit
+        geofenceFile.writeFile("," + Long.toString(dateExit), false); // false because transition exit
 
         Long dateEnter = sharedPref.getLong(KEY_DATA_ENTER, INVALID_LONG_VALUE);
         if (dateEnter == INVALID_LONG_VALUE) {
             // error invalid date of enter into geofence
             return;
         }
+
+        String disp_id = sharedPref.getString(DISP_ID, null);
 
         try {
             Log.i(TAG, "postPlace");
@@ -663,6 +743,11 @@ public class LocationService extends Service implements
             jsonPlace.put("lng", sgfence.getLongitude());
             jsonPlace.put("dateEnter", dateEnter);
             jsonPlace.put("dateExit", dateExit);
+            if (disp_id == null) {
+                jsonPlace.put("dispID", JSONObject.NULL);
+            } else {
+                jsonPlace.put("dispID", disp_id);
+            }
             mRESTcURL.postPlace(jsonPlace);
 
 //            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
@@ -730,11 +815,11 @@ public class LocationService extends Service implements
      */
     protected void updateDetectedActivity(DetectedActivity detectedActivity) {
         Log.i(TAG, "activity detected " + detectedActivity.getType() + " " + detectedActivity.getConfidence() + "%");
-        int detectedActivityType = detectedActivity.getType();
+        detectedActivityType = detectedActivity.getType();
         switch (detectedActivityType) {
             case DetectedActivity.IN_VEHICLE:
                 Log.i(TAG, "IN_VEHICLE");
-                setUpdateInterval(10 * seconds, 10 * seconds);
+                setUpdateInterval(8 * seconds, 8 * seconds);
                 break;
             case DetectedActivity.ON_BICYCLE:
                 Log.i(TAG, "ON_BICYCLE");
@@ -751,13 +836,13 @@ public class LocationService extends Service implements
                 break;
             case DetectedActivity.WALKING:
                 Log.i(TAG, "WALKING");
-                setUpdateInterval(1 * minutes, 1 * minutes);
+                setUpdateInterval(40 * seconds, 40 * seconds);
                 break;
             case DetectedActivity.STILL:
                 Log.i(TAG, "STILL");
                 // The device is still (not moving).
-//                setUpdateInterval(5 * minutes, 5 * minutes);
-                setUpdateInterval(10 * seconds, 10 * seconds);
+                setUpdateInterval(1 * minutes, 1 * minutes);  // REMEMBER
+//                setUpdateInterval(10 * seconds, 10 * seconds);
                 break;
             case DetectedActivity.TILTING:
                 Log.i(TAG, "TILTING");
@@ -796,6 +881,32 @@ public class LocationService extends Service implements
         } else {
             boolRemoveRequest = true;
             mGoogleApiClient.connect();
+        }
+    }
+
+    @Override
+    public void onNmeaReceived(long timestamp, String nmea) {
+
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(timestamp);
+        String date = formatter.format(calendar.getTime());
+
+        String[] str_plit = nmea.split(",");
+
+
+//        nmeaFile.writeFile(Long.toString(timestamp) + ", " + nmea);
+
+        if (str_plit[0].equals("$GPRMC") && !nmeaRead) {
+
+            if (rmc == null) {
+                rmc = nmea.substring(0, nmea.length() - 2);
+            }
+
+            if (str_plit[2].equals("A")) { // Status A=active
+                Log.d(TAG, "onNmeaReceived " + str_plit[3] + ", " + str_plit[5] + ", " + timestamp);
+                rmc = nmea.substring(0, nmea.length() - 2);
+            }
         }
     }
 }

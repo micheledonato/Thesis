@@ -29,7 +29,7 @@ public class LocationFile {
 
     // File
     private File file;
-    // Writer for json file
+    // Writer for file
     private FileWriter fileWriter;
     // Buffer for FileWriter
     private BufferedWriter bufferedWriter;
@@ -158,12 +158,13 @@ public class LocationFile {
         }
     }
 
-    public JSONObject fileToJson() {
+    public JSONObject fileToJson(String dispID) {
 
         JSONObject total = new JSONObject();
         JSONArray jsonArray = new JSONArray();
 
         try {
+            total.put("_id", dispID);
             total.put("userID", personID);
             total.put("positions", jsonArray);
         } catch (JSONException e) {
@@ -178,12 +179,14 @@ public class LocationFile {
 
             String line;
             while ((line = bufferedReader.readLine()) != null) {
-                String[] arrayLine = line.split(",");
+                String[] arrayLine = line.split(";");
                 JSONObject jsonObject = new JSONObject();
                 try {
                     jsonObject.put("lat", arrayLine[1]);
                     jsonObject.put("lng", arrayLine[2]);
                     jsonObject.put("date", arrayLine[0]);
+                    jsonObject.put("nmea", arrayLine[3]);
+                    jsonObject.put("userActivity", arrayLine[4]);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
