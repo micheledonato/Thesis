@@ -3,6 +3,7 @@ package com.devmicheledonato.thesis;
 import android.Manifest;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
@@ -10,10 +11,13 @@ import android.content.pm.PackageManager;
 import android.location.GpsStatus;
 import android.location.Location;
 import android.location.LocationManager;
+import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
@@ -57,11 +61,6 @@ public class LocationService extends Service implements
 
     // TAG for debug
     private final String TAG = this.getClass().getSimpleName();
-
-    /**
-     * Constant used in the location settings dialog.
-     */
-    protected static final int REQUEST_CHECK_SETTINGS = 0x1;
 
     private static long seconds = 1000;
     private static long minutes = 60 * seconds;
@@ -175,6 +174,8 @@ public class LocationService extends Service implements
 
     private boolean locationUpdates;
 
+    private ThesisApplication app;
+
     private LocationManager lm;
 
     public LocationService() {
@@ -210,14 +211,21 @@ public class LocationService extends Service implements
 
     @Override
     public void onCreate() {
+
         Log.i(TAG, "onCreate");
         super.onCreate();
+
+        app = ThesisApplication.getInstance();
+
+        app.logFile.append(TAG, "onCreate");
 
         nmeaRead = false;
 
         mCurrentLocation = null;
         simpleGeofenceBuilder = new SimpleGeofenceBuilder(this, false);
         simpleGeofenceStore = new SimpleGeofenceStore(this);
+
+        detectedActivityType = -1;
 
         geofenceFile = new GeofenceFile(this);
         locationFile = new LocationFile(this);
@@ -316,7 +324,6 @@ public class LocationService extends Service implements
         return START_NOT_STICKY;
     }
 
-
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -329,6 +336,7 @@ public class LocationService extends Service implements
 //        stopForeground();
 
         Log.i(TAG, "onDestroy");
+        app.logFile.append(TAG, "onDestroy");
     }
 
     protected synchronized void buildGoogleApiClient() {
@@ -346,7 +354,7 @@ public class LocationService extends Service implements
         mLocationRequest = new LocationRequest();
         mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
         mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY); // REMEMBER
     }
 
     protected void buildLocationSettingsRequest() {
@@ -354,6 +362,8 @@ public class LocationService extends Service implements
         builder.addLocationRequest(mLocationRequest);
         // Always show the dialog, without the "Never" option to suppress future dialogs from this app
         builder.setAlwaysShow(true);
+        // Sets whether the client wants BLE scan to be enabled.
+        builder.setNeedBle(true);
         mLocationSettingsRequest = builder.build();
     }
 
@@ -384,7 +394,7 @@ public class LocationService extends Service implements
                 try {
                     // Show the dialog by calling startResolutionForResult(),
                     // and check the result in onActivityResult().
-                    status.startResolutionForResult(MainActivity.getInstance(), REQUEST_CHECK_SETTINGS);
+                    status.startResolutionForResult(MainActivity.getInstance(), MainActivity.REQUEST_CHECK_SETTINGS);
                 } catch (IntentSender.SendIntentException e) {
                     // Ignore the error.
                     Log.i(TAG, "PendingIntent unable to execute request.");
@@ -402,6 +412,7 @@ public class LocationService extends Service implements
 
     protected void startLocationUpdates() {
         Log.i(TAG, "startLocationUpdates");
+        app.logFile.append(TAG, "startLocationUpdates");
 
         try {
             lm.addNmeaListener(this);
@@ -435,6 +446,7 @@ public class LocationService extends Service implements
 
     protected void stopLocationUpdates() {
         Log.i(TAG, "stopLocationUpdates");
+        app.logFile.append(TAG, "stopLocationUpdates");
 
         lm.removeNmeaListener(this);
 
@@ -512,25 +524,33 @@ public class LocationService extends Service implements
     }
 
     private void locationChanged(Location location) {
-        Log.i(TAG, "locationChanged");
+        boolean isMock = false;
+        if (android.os.Build.VERSION.SDK_INT >= 18) {
+            // is not 100% reliable
+            isMock = location.isFromMockProvider();
+        } else {
+            // useless against rooted device
+            isMock = !Settings.Secure.getString(app.getContentResolver(), Settings.Secure.ALLOW_MOCK_LOCATION).equals("0");
+        }
+        Log.i(TAG, "locationChanged - Mock: " + isMock);
 
-        countDownFinished = false;
+//        countDownFinished = false;
         // if the countdown is over, I do nothing
         // this is for prevent if a location update should come after the end of the countdown
         if (countDownFinished) {
             Log.i(TAG, "countDownFinished");
-            // countDownFinished will reset when a geofence transition will arrive.
+            // countDownFinished will reset when a transition exit will arrive.
             return;
         }
 
-        // if arrive a location before 5 seconds, it's discarded
-        // because app fails to take NMEA data
-        if (mCurrentLocation != null) {
-            if ((location.getTime() - mCurrentLocation.getTime()) < (5 * seconds)) {
-                Log.d(TAG, "min 5 seconds");
-                return;
-            }
-        }
+//        // if arrive a location before 5 seconds, it's discarded
+//        // because app fails to take NMEA data
+//        if (mCurrentLocation != null) {
+//            if ((location.getTime() - mCurrentLocation.getTime()) < (5 * seconds)) {
+//                Log.d(TAG, "min 5 seconds");
+//                return;
+//            }
+//        }
 
         nmeaRead = true;
         int userActivity = detectedActivityType;
@@ -543,17 +563,21 @@ public class LocationService extends Service implements
         String dateString = simpleDateFormat.format(timeLocation);
 
         String[] str_plit;
-        String tempNMEA = null;
+        String validity = null;
         if (rmc != null) {
             str_plit = rmc.split(",");
-            tempNMEA = str_plit[3];
+            validity = str_plit[2];
         }
 
         Log.d(TAG, "Location " + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude()
-                + " Time " + timeLocation + " NMEA " + tempNMEA + " UserActivity " + userActivity);
+                + " Time " + dateString + " NMEA " + validity + " UserActivity " + userActivity);
+
+        app.logFile.append(TAG, "Location " + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude()
+                + " Time " + dateString + " NMEA " + validity + " UserActivity " + userActivity);
 
         if (!startGeofencing) {
             Log.i(TAG, "startGeofencing");
+            app.logFile.append(TAG, "startGeofencing");
             // Start the geofencing
             startGeofencing = true;
             displacement = false;
@@ -566,8 +590,10 @@ public class LocationService extends Service implements
         } else {
             float distance = simpleGeofenceBuilder.getEnterPoint().distanceTo(mCurrentLocation);
             Log.i(TAG, "Distance: " + distance);
+            app.logFile.append(TAG, "Distance: " + distance);
             if (distance > SimpleGeofenceBuilder.DISTANCE_RADIUS) { // prima era solo DISTANCE_RADIUS = 100
                 Log.i(TAG, "Distance greater");
+                app.logFile.append(TAG, "Distance greater");
                 // Means there are displacement locations
                 displacement = true;
                 // Reset countdown
@@ -591,11 +617,12 @@ public class LocationService extends Service implements
 
     private void setCountdown() {
         Log.i(TAG, "setCountdown");
+        app.logFile.append(TAG, "SetCountdown");
         if (timer != null) {
             Log.i(TAG, "Timer cancelled");
             timer.cancel();
         }
-        timer = new CountDownTimer(6 * minutes, 6 * minutes) { // REMEMBER
+        timer = new CountDownTimer(10 * minutes, 10 * minutes) { // REMEMBER
             @Override
             public void onTick(long millisUntilFinished) {
                 Log.i(TAG, Long.toString(millisUntilFinished));
@@ -603,9 +630,11 @@ public class LocationService extends Service implements
 
             @Override
             public void onFinish() {
-//                timer = null;
                 Log.i(TAG, "Timer finished");
+                app.logFile.append(TAG, "timer finished");
+                countDownFinished = true;
                 stopLocationUpdates();
+
                 createRequestGeofence();
 
 //                countDownFinished = true;
@@ -625,6 +654,7 @@ public class LocationService extends Service implements
         // Send a request to add the current geofence.
         mGeofencingRequest = getGeofencingRequest(simpleGeofence.toGeofence());
         Log.i(TAG, "addGeofence G-" + simpleGeofence.getId());
+        app.logFile.append(TAG, "addGeofence G-" + simpleGeofence.getId());
         addGeofence();
         startGeofencing = false;
     }
@@ -644,7 +674,7 @@ public class LocationService extends Service implements
     }
 
     private void sendDisplacement() {
-
+        app.logFile.append(TAG, "sendDisplacement");
         String dispID = null;
 
         // if there are displacement locations, I send data to server
@@ -653,6 +683,7 @@ public class LocationService extends Service implements
             dispID = UUID.randomUUID().toString();
 
             Log.i(TAG, "There is displacement locations");
+            app.logFile.append(TAG, "There is displacement");
             mRESTcURL.postDisplacement(locationFile.fileToJson(dispID));
         }
 
@@ -665,17 +696,16 @@ public class LocationService extends Service implements
         locationFile.deleteFile();
     }
 
+    // I can enter after gf creation or just after transitionEnter because gf already exist
     private void geofenceTransitionEnter(String id) {
         Log.i(TAG, "ENTER: " + id);
-
+        app.logFile.append(TAG, "ENTER: " + id);
         // stop previous countdown
         if (timer != null) {
             Log.i(TAG, "Timer cancelled");
             timer.cancel();
         }
-        // I can enter after gf creation or just after transitionEnter because gf already exist
-        // it's possible to restart a new countdown
-        countDownFinished = true;
+
         // stop location updates
         stopLocationUpdates();
 
@@ -710,6 +740,7 @@ public class LocationService extends Service implements
 
     private void geofenceTransitionExit(String id) {
         Log.i(TAG, "EXIT: " + id);
+        app.logFile.append(TAG, "EXIT: " + id);
 
         // if there has not been a transition_enter return
         if (!sharedPref.getBoolean(KEY_ENTER, false)) {
@@ -771,6 +802,10 @@ public class LocationService extends Service implements
 
         // it's possible to restart a new countdown
         countDownFinished = false;
+        // it's possible to start a geofencing
+        startGeofencing = false;
+        // save the state on sharedPreferences
+        saveStateInSharedPref();
         // restart location updates
         startLocationUpdates();
     }
@@ -815,39 +850,43 @@ public class LocationService extends Service implements
      */
     protected void updateDetectedActivity(DetectedActivity detectedActivity) {
         Log.i(TAG, "activity detected " + detectedActivity.getType() + " " + detectedActivity.getConfidence() + "%");
+        if (detectedActivityType == detectedActivity.getType()) {
+            return;
+        }
+        app.logFile.append(TAG, "Different userActivity: " + detectedActivity.getType());
         detectedActivityType = detectedActivity.getType();
         switch (detectedActivityType) {
-            case DetectedActivity.IN_VEHICLE:
+            case DetectedActivity.IN_VEHICLE: // Type 0 - Avg. Speed 5m/s
                 Log.i(TAG, "IN_VEHICLE");
-                setUpdateInterval(8 * seconds, 8 * seconds);
+                setUpdateInterval(10 * seconds, 10 * seconds);
                 break;
-            case DetectedActivity.ON_BICYCLE:
+            case DetectedActivity.ON_BICYCLE: // Type 1 -  Avg. Speed 3.5m/s
                 Log.i(TAG, "ON_BICYCLE");
                 setUpdateInterval(15 * seconds, 15 * seconds);
                 break;
-            case DetectedActivity.RUNNING:
+            case DetectedActivity.RUNNING: // Type 8 -  Avg. Speed 2m/s
                 Log.i(TAG, "RUNNING");
-                setUpdateInterval(20 * seconds, 20 * seconds);
+                setUpdateInterval(25 * seconds, 25 * seconds);
                 break;
-            case DetectedActivity.ON_FOOT:
+            case DetectedActivity.ON_FOOT: // Type 2
                 Log.i(TAG, "ON_FOOT");
                 // The device is on a user who is walking or running.
                 setUpdateInterval(35 * seconds, 35 * seconds);
                 break;
-            case DetectedActivity.WALKING:
+            case DetectedActivity.WALKING: // Type 7 -  Avg. Speed 1.25m/s
                 Log.i(TAG, "WALKING");
                 setUpdateInterval(40 * seconds, 40 * seconds);
                 break;
-            case DetectedActivity.STILL:
+            case DetectedActivity.STILL: // Type 3
                 Log.i(TAG, "STILL");
                 // The device is still (not moving).
-                setUpdateInterval(1 * minutes, 1 * minutes);  // REMEMBER
+                setUpdateInterval(3 * minutes, 3 * minutes);  // REMEMBER
 //                setUpdateInterval(10 * seconds, 10 * seconds);
                 break;
-            case DetectedActivity.TILTING:
+            case DetectedActivity.TILTING: // Type 5
                 Log.i(TAG, "TILTING");
                 break;
-            case DetectedActivity.UNKNOWN:
+            case DetectedActivity.UNKNOWN: // Type 4
                 Log.i(TAG, "UNKNOWN");
                 break;
             default:

@@ -10,6 +10,9 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.Volley;
 
+import java.util.logging.*;
+import java.util.logging.Logger;
+
 public class ThesisApplication extends Application {
 
     private static ThesisApplication mThesisApplication;
@@ -22,10 +25,14 @@ public class ThesisApplication extends Application {
     private SharedPreferences sharedPref;
     public static final String KEY_PREF_UPDATES = "pref_updates";
 
+    public static LogFile logFile;
+
     @Override
     public void onCreate() {
         super.onCreate();
         mThesisApplication = this;
+
+        logFile = new LogFile(this);
 
         sharedPref = PreferenceManager.getDefaultSharedPreferences(this);
     }

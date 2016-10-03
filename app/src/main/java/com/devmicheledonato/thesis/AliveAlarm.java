@@ -54,6 +54,7 @@ public class AliveAlarm extends BroadcastReceiver {
     }
 
     public void cancelAlarm(Context context) {
+        Log.d(TAG, "cancelAlarm");
         if (alarmManager != null) {
             alarmManager.cancel(getPendingIntent(context));
         }

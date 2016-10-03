@@ -96,6 +96,12 @@ public class SignInActivity extends AppCompatActivity implements
         buildGoogleApiClient();
     }
 
+    @Override
+    public void onBackPressed() {
+//        MainActivity.getInstance().finish();
+//        super.onBackPressed();
+    }
+
     protected synchronized void buildGoogleSignInOptions() {
         // Configure sign-in to request the user's ID, email address, and basic
         // profile. ID and basic profile are included in DEFAULT_SIGN_IN.
@@ -387,7 +393,6 @@ public class SignInActivity extends AppCompatActivity implements
                 }
             } catch (IOException e) {
                 e.printStackTrace();
-
             }
         }
     }

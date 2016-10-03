@@ -22,7 +22,10 @@ public class RESTcURL {
     private static final String PLACE = "PLACE";
     private static final String DISPLACEMENT = "DISPLACEMENT";
 
+    private ThesisApplication app;
+
     public RESTcURL() {
+        app = ThesisApplication.getInstance();
     }
 
     public void postAlive(JSONObject jsonObject) {
@@ -52,6 +55,7 @@ public class RESTcURL {
     private void postData(String url, String tag, JSONObject jsonObject) {
 
         Log.i(TAG, jsonObject.toString());
+        app.logFile.append(TAG, jsonObject.toString());
 
         JsonObjectRequest request = new JsonObjectRequest(Request.Method.POST, url, jsonObject,
                 new Response.Listener<JSONObject>() {
@@ -59,6 +63,7 @@ public class RESTcURL {
                     public void onResponse(JSONObject response) {
                         if (response != null) {
                             Log.i(TAG, "Response " + response.toString());
+                            app.logFile.append(TAG, "Response " + response.toString());
                         }
                     }
                 },
@@ -70,6 +75,7 @@ public class RESTcURL {
 //                        Log.i(TAG, "StatusCode: " + statusCode + " Error response: " + error.toString());
                         if (error != null) {
                             Log.i(TAG, "Error response: " + error.toString());
+                            app.logFile.append(TAG, "Error response: " + error.toString());
                         }
                     }
                 }
@@ -91,7 +97,6 @@ public class RESTcURL {
                 }
 
                 return volleyError;
-
             }
         };
 

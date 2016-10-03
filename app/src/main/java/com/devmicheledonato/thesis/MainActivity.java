@@ -96,6 +96,7 @@ public class MainActivity extends AppCompatActivity implements
      * Constant used in the location settings dialog.
      */
     protected static final int REQUEST_CHECK_SETTINGS = 0x1;
+
     /**
      * Root of the layout of this Activity.
      */

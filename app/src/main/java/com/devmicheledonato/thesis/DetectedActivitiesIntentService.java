@@ -47,6 +47,11 @@ public class DetectedActivitiesIntentService extends IntentService {
         // device. The activity is associated with a confidence level, which is an int between
         // 0 and 100.
         DetectedActivity detectedActivity = result.getMostProbableActivity();
+        int type = detectedActivity.getType();
+        int confidence = detectedActivity.getConfidence();
+        if (type == DetectedActivity.UNKNOWN || type == DetectedActivity.TILTING || confidence < 50) {
+            return;
+        }
 
 //        NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
 //        builder.setSmallIcon(R.mipmap.ic_launcher)
