@@ -5,6 +5,8 @@ import android.Manifest;
 import android.app.Fragment;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.location.Location;
 import android.os.Bundle;
 
@@ -16,8 +18,8 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import com.devmicheledonato.thesis.GeofenceFile;
 import com.devmicheledonato.thesis.LocationService;
@@ -32,7 +34,10 @@ import com.google.android.gms.maps.MapsInitializer;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.BufferedReader;
@@ -43,7 +48,9 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Locale;
 
 
 /**
@@ -77,9 +84,12 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
     // To print on file
     private PrintWriter printWriter;
 
-    private ArrayList<String> array;
     private SimpleGeofenceStore simpleGeofenceStore;
     private SimpleGeofence geofence;
+
+    private ArrayList<String> mListID;
+    private ArrayList<Marker> mMarkers;
+    private ArrayList<Circle> mCircles;
 
     public MapsFragment() {
         // Required empty public constructor
@@ -124,8 +134,10 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
         context = getActivity();
         file = new File(context.getExternalCacheDir(), GeofenceFile.GEOFENCE_FILENAME);
 
-        array = new ArrayList<>();
         simpleGeofenceStore = new SimpleGeofenceStore(context);
+        mListID = new ArrayList<String>();
+        mMarkers = new ArrayList<Marker>();
+        mCircles = new ArrayList<Circle>();
 
 //        mapFragment.getMapAsync(this);
 
@@ -167,6 +179,42 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
 
         // add geofence's marker on map
         addGeofenceMarker();
+
+        GoogleMap.InfoWindowAdapter infoWindowAdapter = new GoogleMap.InfoWindowAdapter() {
+            @Override
+            public View getInfoWindow(Marker marker) {
+                return null;
+            }
+
+            @Override
+            public View getInfoContents(Marker marker) {
+
+                LinearLayout ll = new LinearLayout(context);
+                ll.setOrientation(LinearLayout.VERTICAL);
+
+                TextView title = new TextView(context);
+                title.setText(marker.getTitle());
+                title.setTypeface(null, Typeface.BOLD);
+                title.setTextColor(Color.BLACK);
+
+                TextView snippet = new TextView(context);
+                snippet.setText(marker.getSnippet());
+
+                title.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+
+                snippet.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+
+                ll.addView(title);
+                ll.addView(snippet);
+
+                return ll;
+            }
+        };
+        mMap.setInfoWindowAdapter(infoWindowAdapter);
     }
 
     @Override
@@ -191,17 +239,64 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
         return root;
     }
 
+    private void removeMarkersCircles() {
+        for (Marker marker : mMarkers) {
+            marker.remove();
+        }
+        mMarkers.clear();
+        for (Circle circle : mCircles) {
+            circle.remove();
+        }
+        mCircles.clear();
+    }
+
     private void addGeofenceMarker() {
+        removeMarkersCircles();
+
         if (file.exists()) {
             readFile();
-            for (String id : array) {
+            for (String id : mListID) {
                 geofence = simpleGeofenceStore.getGeofence(id);
 
+                LatLng center = new LatLng(geofence.getLatitude(), geofence.getLongitude());
+
                 MarkerOptions markerOptions = new MarkerOptions();
-                markerOptions.position(new LatLng(geofence.getLatitude(), geofence.getLongitude()));
+                markerOptions.position(center);
                 markerOptions.title(id);
 
-                mMap.addMarker(markerOptions);
+                Long dateEnter;
+                Long dateExit = Long.valueOf(0);
+
+                SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
+                String dateENTERString = "";
+                String dateEXITString = "";
+
+                if (simpleGeofenceStore.getGeofenceDateEnter(id) != simpleGeofenceStore.INVALID_LONG_VALUE) {
+                    dateEnter = simpleGeofenceStore.getGeofenceDateEnter(id);
+                    dateENTERString = simpleDateFormat.format(dateEnter);
+                    if (simpleGeofenceStore.getGeofenceDateExit(id) != simpleGeofenceStore.INVALID_LONG_VALUE) {
+                        dateExit = simpleGeofenceStore.getGeofenceDateExit(id);
+                        dateEXITString = simpleDateFormat.format(dateExit);
+                    }
+
+                    markerOptions.snippet("DateEnter: " + dateENTERString + "\nDateExit: " + (dateEXITString.equals("") ? "NA" : dateEXITString));
+                }
+
+                Marker marker = mMap.addMarker(markerOptions);
+                mMarkers.add(marker);
+
+
+                // Instantiates a new CircleOptions object and defines the center and radius
+                CircleOptions circleOptions = new CircleOptions()
+                        .center(center)
+                        .radius(100) // In meters
+                        .strokeWidth(2)
+                        .strokeColor(Color.BLUE)
+                        .fillColor(Color.parseColor("#500084d3"));
+
+                // Get back the mutable Circle
+                Circle circle = mMap.addCircle(circleOptions);
+                mCircles.add(circle);
             }
         }
     }
@@ -233,7 +328,10 @@ public class MapsFragment extends Fragment implements OnMapReadyCallback {
             String line;
             while ((line = bufferedReader.readLine()) != null) {
                 String[] lineSplitted = line.split(",");
-                array.add(lineSplitted[0]);
+                String id = lineSplitted[0];
+                if (!mListID.contains(id)) {
+                    mListID.add(id);
+                }
             }
         } catch (FileNotFoundException e) {
             e.printStackTrace();

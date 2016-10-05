@@ -125,11 +125,24 @@ public class DataFragment extends Fragment {
             while ((line = bufferedReader.readLine()) != null) {
                 String[] lineSplitted = line.split(",");
                 StructureGeofence structureGeofence = new StructureGeofence();
-                structureGeofence.setId(lineSplitted[0]);
-                structureGeofence.setEnter(Long.parseLong(lineSplitted[1]));
-                if (lineSplitted.length == 3) {
-                    structureGeofence.setExit(Long.parseLong(lineSplitted[2]));
+
+                String id = lineSplitted[0];
+                Long dateEnter = Long.parseLong(lineSplitted[1]);
+
+                structureGeofence.setId(id);
+                structureGeofence.setEnter(dateEnter);
+
+                Long oldDateExit = simpleGeofenceStore.getGeofenceDateExit(id);
+
+                if (dateEnter < oldDateExit) {
+                    if (simpleGeofenceStore.getGeofenceDateExit(id) != SimpleGeofenceStore.INVALID_LONG_VALUE) {
+                        structureGeofence.setExit(simpleGeofenceStore.getGeofenceDateExit(id));
+                    }
                 }
+
+//                if (lineSplitted.length == 3) {
+//                    structureGeofence.setExit(Long.parseLong(lineSplitted[2]));
+//                }
                 array.add(structureGeofence);
             }
         } catch (FileNotFoundException e) {

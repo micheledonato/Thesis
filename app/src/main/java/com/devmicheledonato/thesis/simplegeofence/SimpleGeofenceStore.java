@@ -15,6 +15,10 @@ public class SimpleGeofenceStore {
     public static final String KEY_EXPIRATION_DURATION = "KEY_EXPIRATION_DURATION";
     public static final String KEY_TRANSITION_TYPE = "KEY_TRANSITION_TYPE";
 
+    private static final String KEY_DATE_ENTER = "KEY_DATE_ENTER";
+    private static final String KEY_DATE_EXIT = "KEY_DATE_EXIT";
+    private static final String KEY_DISPID_ENTER = "KEY_DISPID_ENTER";
+
     // The prefix for flattened geofence keys.
     public static final String KEY_PREFIX = "KEY";
 
@@ -22,6 +26,7 @@ public class SimpleGeofenceStore {
     public static final long INVALID_LONG_VALUE = -999l;
     public static final float INVALID_FLOAT_VALUE = -999.0f;
     public static final int INVALID_INT_VALUE = -999;
+
 
     // The SharedPreferences object in which geofences are stored.
     private final SharedPreferences mPrefs;
@@ -87,6 +92,36 @@ public class SimpleGeofenceStore {
                 geofence.getTransitionType());
         // Commit the changes.
         prefs.commit();
+    }
+
+    public void setGeofenceDateEnter(String id, long dateEnter){
+        SharedPreferences.Editor prefs = mPrefs.edit();
+        prefs.putLong(getGeofenceFieldKey(id, KEY_DATE_ENTER), dateEnter);
+        prefs.commit();
+    }
+
+    public void setGeofenceDateExit(String id, long dateExit){
+        SharedPreferences.Editor prefs = mPrefs.edit();
+        prefs.putLong(getGeofenceFieldKey(id, KEY_DATE_EXIT), dateExit);
+        prefs.commit();
+    }
+
+    public void setGeofenceDispIdEnter(String id, String dispIdEnter){
+        SharedPreferences.Editor prefs = mPrefs.edit();
+        prefs.putString(getGeofenceFieldKey(id, KEY_DISPID_ENTER), dispIdEnter);
+        prefs.commit();
+    }
+
+    public long getGeofenceDateEnter(String id){
+        return mPrefs.getLong(getGeofenceFieldKey(id, KEY_DATE_ENTER), INVALID_LONG_VALUE);
+    }
+
+    public long getGeofenceDateExit(String id){
+        return mPrefs.getLong(getGeofenceFieldKey(id, KEY_DATE_EXIT), INVALID_LONG_VALUE);
+    }
+
+    public String getGeofenceDispIdEnter(String id){
+        return mPrefs.getString(getGeofenceFieldKey(id, KEY_DISPID_ENTER), null);
     }
 
     /**

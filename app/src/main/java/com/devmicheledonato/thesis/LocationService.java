@@ -3,7 +3,6 @@ package com.devmicheledonato.thesis;
 import android.Manifest;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.SharedPreferences;
@@ -11,8 +10,6 @@ import android.content.pm.PackageManager;
 import android.location.GpsStatus;
 import android.location.Location;
 import android.location.LocationManager;
-import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.IBinder;
@@ -106,7 +103,8 @@ public class LocationService extends Service implements
     private static final String KEY_DATA_ENTER = "KEY_DATA_ENTER";
     public static final String KEY_ENTER = "KEY_ENTER";
 
-    public static final long INVALID_LONG_VALUE = -999l;
+    private static final String NUMBER_TRANSITION_ENTER = "NUMBER_TRANSITION_ENTER";
+    private static final String GEOFENCE_ADDED = "GEOFENCE_ADDED";
 
     // Json file
     File file;
@@ -171,6 +169,9 @@ public class LocationService extends Service implements
     private boolean boolRemoveRequest;
     private boolean boolStartLocationUpdates;
     private boolean boolStopLocationUpdates;
+    private boolean geofenceAdded;
+
+    private int numbEnter;
 
     private boolean locationUpdates;
 
@@ -198,6 +199,8 @@ public class LocationService extends Service implements
         editor.putBoolean(DISPLACEMENT, displacement);
         editor.putBoolean(COUNTDOWN, countDownFinished);
         editor.putBoolean(LOCATION_UPDATES, locationUpdates);
+        editor.putInt(NUMBER_TRANSITION_ENTER, numbEnter);
+        editor.putBoolean(GEOFENCE_ADDED, geofenceAdded);
         editor.apply();
     }
 
@@ -207,6 +210,8 @@ public class LocationService extends Service implements
         countDownFinished = sharedPref.getBoolean(COUNTDOWN, false);
         locationUpdates = sharedPref.getBoolean(LOCATION_UPDATES, false);
         personID = sharedPref.getString(SignInActivity.PERSON_ID, ERROR_ID);
+        numbEnter = sharedPref.getInt(NUMBER_TRANSITION_ENTER, 0);
+        geofenceAdded = sharedPref.getBoolean(GEOFENCE_ADDED, false);
     }
 
     @Override
@@ -354,7 +359,7 @@ public class LocationService extends Service implements
         mLocationRequest = new LocationRequest();
         mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
         mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY); // REMEMBER
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY); // REMEMBER
     }
 
     protected void buildLocationSettingsRequest() {
@@ -656,14 +661,14 @@ public class LocationService extends Service implements
         Log.i(TAG, "addGeofence G-" + simpleGeofence.getId());
         app.logFile.append(TAG, "addGeofence G-" + simpleGeofence.getId());
         addGeofence();
-        startGeofencing = false;
+//        startGeofencing = false;
     }
 
     private void addGeofence() {
         if (mGoogleApiClient.isConnected()) {
             try {
                 LocationServices.GeofencingApi.addGeofences(mGoogleApiClient, mGeofencingRequest, mGeofenceRequestIntent);
-
+                geofenceAdded = true;
             } catch (SecurityException securityException) {
                 securityException.printStackTrace();
             }
@@ -673,7 +678,7 @@ public class LocationService extends Service implements
         }
     }
 
-    private void sendDisplacement() {
+    private void sendDisplacement(String id) {
         app.logFile.append(TAG, "sendDisplacement");
         String dispID = null;
 
@@ -687,9 +692,11 @@ public class LocationService extends Service implements
             mRESTcURL.postDisplacement(locationFile.fileToJson(dispID));
         }
 
-        SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putString(DISP_ID, dispID);
-        editor.apply();
+        simpleGeofenceStore.setGeofenceDispIdEnter(id, dispID);
+
+//        SharedPreferences.Editor editor = sharedPref.edit();
+//        editor.putString(DISP_ID, dispID);
+//        editor.apply();
 
         displacement = false;
         // delete file
@@ -709,7 +716,7 @@ public class LocationService extends Service implements
         // stop location updates
         stopLocationUpdates();
 
-        sendDisplacement();
+        sendDisplacement(id);
 
 //        SimpleGeofence sgfence = simpleGeofenceStore.getGeofence(id);
 //        // if the geofence has not dateEnter, I set now as dateEnter
@@ -723,15 +730,26 @@ public class LocationService extends Service implements
         Calendar calendar = Calendar.getInstance();
         Long dateEnter = calendar.getTimeInMillis();
 
-        SharedPreferences.Editor editor = sharedPref.edit();
-        // save the date of entry
-        editor.putLong(KEY_DATA_ENTER, dateEnter);
-        // means that there has been a transition_enter
-        editor.putBoolean(KEY_ENTER, true);
-        editor.apply();
+        if (geofenceAdded) {
+            dateEnter -= 10 * minutes;
+        }
+        geofenceAdded = false;
+
+        simpleGeofenceStore.setGeofenceDateEnter(id, dateEnter);
+        // remove old dateExit from geofence
+        simpleGeofenceStore.setGeofenceDateExit(id, SimpleGeofenceStore.INVALID_LONG_VALUE);
+
+//        SharedPreferences.Editor editor = sharedPref.edit();
+//        // save the date of entry
+//        editor.putLong(KEY_DATA_ENTER, dateEnter);
+//        // means that there has been a transition_enter
+//        editor.putBoolean(KEY_ENTER, true);
+//        editor.apply();
 
         geofenceFile.writeFile(id + "," + Long.toString(dateEnter), true); // true because transition enter
 
+        numbEnter = sharedPref.getInt(NUMBER_TRANSITION_ENTER, 0);
+        numbEnter++;
         // save the state on sharedPreferences
         saveStateInSharedPref();
         // stop the service and therefore stop location updates
@@ -742,44 +760,60 @@ public class LocationService extends Service implements
         Log.i(TAG, "EXIT: " + id);
         app.logFile.append(TAG, "EXIT: " + id);
 
-        // if there has not been a transition_enter return
-        if (!sharedPref.getBoolean(KEY_ENTER, false)) {
+        //        // if there has not been a transition_enter return
+//        if (!sharedPref.getBoolean(KEY_ENTER, false)) {
+//            Log.i(TAG, "NO ENTER TRANSITION");
+//            return;
+//        }
+//        // reset the key_enter because there is a transition_exit
+//        SharedPreferences.Editor editor = sharedPref.edit();
+//        editor.putBoolean(KEY_ENTER, false);
+//        editor.apply();
+
+        numbEnter = sharedPref.getInt(NUMBER_TRANSITION_ENTER, 0);
+        if (numbEnter == 0) {
             Log.i(TAG, "NO ENTER TRANSITION");
-            return;
-        }
-        // reset the key_enter because there is a transition_exit
-        SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putBoolean(KEY_ENTER, false);
-        editor.apply();
+            // it's possible to restart a new countdown
+            countDownFinished = false;
+            // it's possible to start a geofencing
+            startGeofencing = false;
+            // restart location updates
+            startLocationUpdates();
+        } else if (numbEnter > 0) {
 
-        // when I leave the geofence, I get date of exit and send all geofence's information to server
-        Calendar calendar = Calendar.getInstance();
-        Long dateExit = calendar.getTimeInMillis();
-        SimpleGeofence sgfence = simpleGeofenceStore.getGeofence(id);
-        geofenceFile.writeFile("," + Long.toString(dateExit), false); // false because transition exit
+            // when I leave the geofence, I get date of exit and send all geofence's information to server
+            Calendar calendar = Calendar.getInstance();
+            Long dateExit = calendar.getTimeInMillis();
+            SimpleGeofence sgfence = simpleGeofenceStore.getGeofence(id);
+            geofenceFile.writeFile("," + Long.toString(dateExit), false); // false because transition exit
 
-        Long dateEnter = sharedPref.getLong(KEY_DATA_ENTER, INVALID_LONG_VALUE);
-        if (dateEnter == INVALID_LONG_VALUE) {
-            // error invalid date of enter into geofence
-            return;
-        }
+            simpleGeofenceStore.setGeofenceDateExit(id, dateExit);
 
-        String disp_id = sharedPref.getString(DISP_ID, null);
+//        Long dateEnter = sharedPref.getLong(KEY_DATA_ENTER, INVALID_LONG_VALUE);
+//        if (dateEnter == INVALID_LONG_VALUE) {
+//            // error invalid date of enter into geofence
+//            return;
+//        }
 
-        try {
-            Log.i(TAG, "postPlace");
-            JSONObject jsonPlace = new JSONObject();
-            jsonPlace.put("userID", personID);
-            jsonPlace.put("lat", sgfence.getLatitude());
-            jsonPlace.put("lng", sgfence.getLongitude());
-            jsonPlace.put("dateEnter", dateEnter);
-            jsonPlace.put("dateExit", dateExit);
-            if (disp_id == null) {
-                jsonPlace.put("dispID", JSONObject.NULL);
-            } else {
-                jsonPlace.put("dispID", disp_id);
-            }
-            mRESTcURL.postPlace(jsonPlace);
+//        String disp_id = sharedPref.getString(DISP_ID, null);
+
+            Long dateEnter = simpleGeofenceStore.getGeofenceDateEnter(id);
+            String disp_id = simpleGeofenceStore.getGeofenceDispIdEnter(id);
+
+            try {
+                Log.i(TAG, "postPlace");
+                JSONObject jsonPlace = new JSONObject();
+                jsonPlace.put("userID", personID);
+                jsonPlace.put("lat", sgfence.getLatitude());
+                jsonPlace.put("lng", sgfence.getLongitude());
+                jsonPlace.put("dateEnter", dateEnter);
+                jsonPlace.put("dateExit", dateExit);
+                if (disp_id == null) {
+                    jsonPlace.put("dispID", JSONObject.NULL);
+                } else {
+                    jsonPlace.put("dispID", disp_id);
+                }
+                mRESTcURL.postPlace(jsonPlace);
 
 //            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
 //            String dateENTERString = simpleDateFormat.format(sgfence.getEnterDate());
@@ -791,23 +825,28 @@ public class LocationService extends Service implements
 //                    + dateENTERString + " "
 //                    + dateEXITString);
 
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
 
 //        sgfence.setEnterDate(SimpleGeofenceStore.INVALID_LONG_VALUE);
 //        simpleGeofenceStore.setGeofence(id, sgfence);
 
-        simpleGeofenceBuilder.deleteFile();
+            simpleGeofenceBuilder.deleteFile();
 
-        // it's possible to restart a new countdown
-        countDownFinished = false;
-        // it's possible to start a geofencing
-        startGeofencing = false;
+            // decrease number of transition enter
+            if (--numbEnter == 0) {
+                // it's possible to restart a new countdown
+                countDownFinished = false;
+                // it's possible to start a geofencing
+                startGeofencing = false;
+                // restart location updates
+                startLocationUpdates();
+            }
+        }
+
         // save the state on sharedPreferences
         saveStateInSharedPref();
-        // restart location updates
-        startLocationUpdates();
     }
 
     private GeofencingRequest getGeofencingRequest(Geofence geofence) {
@@ -926,10 +965,10 @@ public class LocationService extends Service implements
     @Override
     public void onNmeaReceived(long timestamp, String nmea) {
 
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTimeInMillis(timestamp);
-        String date = formatter.format(calendar.getTime());
+//        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
+//        Calendar calendar = Calendar.getInstance();
+//        calendar.setTimeInMillis(timestamp);
+//        String date = formatter.format(calendar.getTime());
 
         String[] str_plit = nmea.split(",");
 

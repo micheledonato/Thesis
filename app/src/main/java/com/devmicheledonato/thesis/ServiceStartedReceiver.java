@@ -6,8 +6,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 
-import com.google.android.gms.location.LocationRequest;
-
 public class ServiceStartedReceiver extends BroadcastReceiver {
     public ServiceStartedReceiver() {
     }

@@ -2,7 +2,6 @@ package com.devmicheledonato.thesis.fragments;
 
 
 import android.app.AlertDialog;
-import android.app.Application;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -13,7 +12,6 @@ import android.preference.PreferenceManager;
 import android.preference.SwitchPreference;
 import android.util.Log;
 
-import com.devmicheledonato.thesis.LocationService;
 import com.devmicheledonato.thesis.MainActivity;
 import com.devmicheledonato.thesis.R;
 import com.devmicheledonato.thesis.SignInActivity;
