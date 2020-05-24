@@ -137,7 +137,6 @@ public class LocationService extends Service implements
     // Represents a geographical location.
     protected static Location mCurrentLocation;
     private long timeLocation;
-    private boolean nmeaRead;
     private String rmc;
 
     private int detectedActivityType;
@@ -223,8 +222,6 @@ public class LocationService extends Service implements
         app = ThesisApplication.getInstance();
 
         app.logFile.append(TAG, "onCreate");
-
-        nmeaRead = false;
 
         mCurrentLocation = null;
         simpleGeofenceBuilder = new SimpleGeofenceBuilder(this, false);
@@ -529,6 +526,8 @@ public class LocationService extends Service implements
     }
 
     private void locationChanged(Location location) {
+//        app.logFile.append(TAG, "locationChanged started");
+
         boolean isMock = false;
         if (android.os.Build.VERSION.SDK_INT >= 18) {
             // is not 100% reliable
@@ -557,7 +556,6 @@ public class LocationService extends Service implements
 //            }
 //        }
 
-        nmeaRead = true;
         int userActivity = detectedActivityType;
         mCurrentLocation = location;
 
@@ -587,7 +585,7 @@ public class LocationService extends Service implements
             startGeofencing = true;
             displacement = false;
             // Set countdown
-            setCountdown();
+            setCountdown(); // REMEMBER
             // Save initial point
             simpleGeofenceBuilder = new SimpleGeofenceBuilder(this, true);
             simpleGeofenceBuilder.addLocation(mCurrentLocation);
@@ -602,7 +600,7 @@ public class LocationService extends Service implements
                 // Means there are displacement locations
                 displacement = true;
                 // Reset countdown
-                setCountdown();
+                setCountdown(); // REMEMBER
                 // Save the new initial point
                 simpleGeofenceBuilder = new SimpleGeofenceBuilder(this, true);
                 simpleGeofenceBuilder.addLocation(mCurrentLocation);
@@ -617,7 +615,8 @@ public class LocationService extends Service implements
                 + ";" + mCurrentLocation.getLongitude() + ";" + rmc + ";" + userActivity);
 
         rmc = null;
-        nmeaRead = false;
+
+//        app.logFile.append(TAG, "locationChanged finished");
     }
 
     private void setCountdown() {
@@ -894,6 +893,7 @@ public class LocationService extends Service implements
         }
         app.logFile.append(TAG, "Different userActivity: " + detectedActivity.getType());
         detectedActivityType = detectedActivity.getType();
+//        detectedActivityType = DetectedActivity.STILL;  // REMEMBER
         switch (detectedActivityType) {
             case DetectedActivity.IN_VEHICLE: // Type 0 - Avg. Speed 5m/s
                 Log.i(TAG, "IN_VEHICLE");
@@ -964,6 +964,7 @@ public class LocationService extends Service implements
 
     @Override
     public void onNmeaReceived(long timestamp, String nmea) {
+//        app.logFile.append(TAG, "onNmeaReceived started");
 
 //        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ITALY);
 //        Calendar calendar = Calendar.getInstance();
@@ -972,10 +973,9 @@ public class LocationService extends Service implements
 
         String[] str_plit = nmea.split(",");
 
-
 //        nmeaFile.writeFile(Long.toString(timestamp) + ", " + nmea);
 
-        if (str_plit[0].equals("$GPRMC") && !nmeaRead) {
+        if (str_plit[0].equals("$GPRMC")) {
 
             if (rmc == null) {
                 rmc = nmea.substring(0, nmea.length() - 2);
@@ -986,5 +986,7 @@ public class LocationService extends Service implements
                 rmc = nmea.substring(0, nmea.length() - 2);
             }
         }
+
+//        app.logFile.append(TAG, "onNmeaReceived finished");
     }
 }

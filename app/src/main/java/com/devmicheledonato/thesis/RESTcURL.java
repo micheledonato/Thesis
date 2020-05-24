@@ -2,10 +2,17 @@ package com.devmicheledonato.thesis;
 
 import android.util.Log;
 
+import com.android.volley.AuthFailureError;
 import com.android.volley.DefaultRetryPolicy;
+import com.android.volley.NetworkError;
 import com.android.volley.NetworkResponse;
+import com.android.volley.NoConnectionError;
+import com.android.volley.ParseError;
 import com.android.volley.Request;
 import com.android.volley.Response;
+import com.android.volley.RetryPolicy;
+import com.android.volley.ServerError;
+import com.android.volley.TimeoutError;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 
@@ -77,6 +84,23 @@ public class RESTcURL {
                             Log.i(TAG, "Error response: " + error.toString());
                             app.logFile.append(TAG, "Error response: " + error.toString());
                         }
+
+                        String message = null;
+                        if (error instanceof NoConnectionError) {
+                            message = "NoConnectionError";
+                        } else if (error instanceof ServerError) {
+                            message = "ServerError";
+                        } else if (error instanceof AuthFailureError) {
+                            message = "AuthFailureError";
+                        } else if (error instanceof ParseError) {
+                            message = "ParseError";
+                        } else if (error instanceof NetworkError) {
+                            message = "NetworkError";
+                        } else if (error instanceof TimeoutError) {
+                            message = "TimeoutError";
+                        }
+
+                        Log.i(TAG, "Error message: " + message);
                     }
                 }
         ) {
@@ -100,7 +124,31 @@ public class RESTcURL {
             }
         };
 
-        request.setRetryPolicy(new DefaultRetryPolicy(20 * 1000, 3, 1.0f));
+        //Set a retry policy in case of SocketTimeout & ConnectionTimeout Exceptions.
+        //Volley does retry for you if you have specified the policy.
+        int socketTimeout = 30000; // 30 seconds
+        int numAttempt = 3;
+        RetryPolicy policy = new DefaultRetryPolicy(socketTimeout, numAttempt, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT);
+        request.setRetryPolicy(policy);
+
+//        Attempt 1:
+//        time = time + (time * Back Off Multiplier);
+//        time = 30.000 + 30.000 = 60.000
+//        socketTimeout = time;
+//        Request dispatched with Socket Timeout of 1 min
+//
+//        Attempt 2:
+//        time = time + (time * Back Off Multiplier);
+//        time = 60.000 + 60.000 = 120.000
+//        socketTimeout = time;
+//        Request dispatched with Socket Timeout of 2 min
+//
+//        Attempt 3:
+//        time = time + (time * Back Off Multiplier);
+//        time = 120.000 + 120.000 = 240.000
+//        socketTimeout = time;
+//        Request dispatched with Socket Timeout of 4 min
+
         ThesisApplication.getInstance().addToRequestQueue(request, tag);
     }
 }

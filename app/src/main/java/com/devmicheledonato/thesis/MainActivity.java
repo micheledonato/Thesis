@@ -616,11 +616,11 @@ public class MainActivity extends AppCompatActivity implements
         }
     }
 
-//    In the manifest, the boot receiver is set to android:enabled="false".
-//    This means that the receiver will not be called unless the application explicitly enables it.
-//    This prevents the boot receiver from being called unnecessarily.
-//    I enable receiver when the user set on preference_updates
-    private void enabledStartedReceiver(){
+    //    In the manifest, the boot receiver is set to android:enabled="false".
+    //    This means that the receiver will not be called unless the application explicitly enables it.
+    //    This prevents the boot receiver from being called unnecessarily.
+    //    I enable receiver when the user set on preference_updates
+    private void enabledStartedReceiver() {
         ComponentName receiver = new ComponentName(this, ServiceStartedReceiver.class);
         PackageManager pm = getPackageManager();
 
@@ -629,7 +629,7 @@ public class MainActivity extends AppCompatActivity implements
                 PackageManager.DONT_KILL_APP);
     }
 
-    private void disabledStartedReceiver(){
+    private void disabledStartedReceiver() {
         ComponentName receiver = new ComponentName(this, ServiceStartedReceiver.class);
         PackageManager pm = getPackageManager();
 
